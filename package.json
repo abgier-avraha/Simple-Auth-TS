@@ -1,0 +1,27 @@
+{
+  "name": "oidc-ts",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest",
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
