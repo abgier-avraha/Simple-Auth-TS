@@ -58,7 +58,7 @@ After login, the server redirects the user to the app’s `redirect_uri` with:
 
 **Query Parameters:**
 - `code` — the authorization code.
-- `state` — app state + CSRF token (verify this value before continuing).
+- `state` — app state + CSRF token (verify this value before continuing by comparing it to csrf token in session).
 
 ---
 
