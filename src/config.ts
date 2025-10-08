@@ -14,3 +14,5 @@ export interface SimpleAuthConfidentialClientConfig<TSession, TState>
 	extends SimpleAuthPublicClientConfig<TSession, TState> {
 	client_secret: string;
 }
+
+// TODO: add cognito credentials provider, uses direct aws sdk API call to get token
