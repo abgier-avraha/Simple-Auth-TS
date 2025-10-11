@@ -1,5 +1,13 @@
 import { expect, test, vi } from "vitest";
-import { getDefaultEncryptedSerializer } from "./serialization.js";
+import type {
+	SimpleAuthConfidentialProvider,
+	SimpleAuthPublicProvider,
+} from "./provider.js";
+import {
+	getDefaultEncryptedSerializer,
+	getDefaultSerializer,
+} from "./serialization.js";
+import { getDefaultLocalStorage } from "./storage.js";
 
 test("Encryption serializer works", () => {
 	// Mock random bytes to fixed value
@@ -22,4 +30,39 @@ test("Encryption serializer works", () => {
 	// Test parsing
 	const parsed = encryptedSerializer.parse(serialized);
 	expect(parsed).toBe("This is a test.");
+});
+
+test("Pulbic client authorize and exchange token", () => {
+	const apple: SimpleAuthConfidentialProvider<unknown, unknown> = {
+		label: "Apple",
+		config: {
+			client_id: "1",
+			client_secret: "2",
+			redirect_uri: "https://",
+			scope: ["openid"],
+			sessionSerialiser: getDefaultEncryptedSerializer("key"),
+			stateSerialiser: getDefaultSerializer(),
+			// TODO: cookie storage
+			storage: {
+				async load(_key) {
+					return "";
+				},
+				async save(_key, _value) {},
+			},
+		},
+	};
+
+	const google: SimpleAuthPublicProvider<unknown, unknown> = {
+		label: "Google",
+		config: {
+			client_id: "1",
+			redirect_uri: "https://",
+			scope: ["openid"],
+			sessionSerialiser: getDefaultSerializer(),
+			stateSerialiser: getDefaultSerializer(),
+			storage: getDefaultLocalStorage(),
+		},
+	};
+
+	const _authConfigs = [apple, google];
 });

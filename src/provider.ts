@@ -3,7 +3,14 @@ import type {
 	SimpleAuthPublicClientConfig,
 } from "./config.js";
 
-export interface SimpleAuthProvider<TSession, TState> {
+export interface SimpleAuthConfidentialProvider<TSession, TState> {
+	label: string;
+	config:
+		| SimpleAuthConfidentialClientConfig<TSession, TState>
+		| SimpleAuthPublicClientConfig<TSession, TState>;
+}
+
+export interface SimpleAuthPublicProvider<TSession, TState> {
 	label: string;
 	config:
 		| SimpleAuthConfidentialClientConfig<TSession, TState>

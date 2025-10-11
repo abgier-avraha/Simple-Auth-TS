@@ -1,6 +1,7 @@
 export interface IStorage {
 	save(key: string, value: string): Promise<void>;
-	load(key: string): Promise<string | null>;
+	load(key: string): Promise<string | undefined>;
+	delete(key: string): Promise<void>;
 }
 
 export const getDefaultLocalStorage: () => IStorage = () => ({
@@ -9,6 +10,10 @@ export const getDefaultLocalStorage: () => IStorage = () => ({
 	},
 
 	load: async (key: string) => {
-		return localStorage.getItem(key);
+		return localStorage.getItem(key) ?? undefined;
+	},
+
+	delete: async (key: string) => {
+		return localStorage.removeItem(key);
 	},
 });
