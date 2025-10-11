@@ -1,48 +1,65 @@
-import { SimpleAuthConfidentialClientConfig } from "./config.js";
-import { SimpleAuthConfidentialProvider } from "./provider.js";
-import { assertDefined } from "./utils.js";
+import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 
 const STORAGE_KEYS = {
 	SESSION: "SIMPLE_AUTH_SESSION",
 	STATE: "SIMPLE_AUTH_STATE",
 };
 
-export class ConfidentialClient<
-	TConfigs extends readonly SimpleAuthConfidentialProvider<unknown, unknown>[],
-	TConfigLabel = TConfigs[number]["label"],
-> {
-	constructor(private configs: TConfigs) {}
+export class ConfidentialClient<TSession, TState> {
+	constructor(
+		private config: SimpleAuthConfidentialClientConfig<TSession, TState>,
+	) {}
 
-	public getSignInUrl(providerLabel: TConfigLabel) {
-		const provider = this.getProvider(providerLabel);
-		// TODO: get sign in url
+	public async getSignInUrl(state: TState) {
+		const serializedState = await this.config.stateSerialiser.stringify(state);
+		await this.config.storage.save(STORAGE_KEYS.STATE, serializedState);
+
+		const params = new URLSearchParams({
+			response_type: "code",
+			client_id: this.config.clientId,
+			redirect_uri: this.config.redirectUri,
+			scope: this.config.scope.join(" "),
+			state: serializedState,
+		});
+
+		return `${this.config.issuerUrl}/authorize?${params.toString()}`;
 	}
 
-	public getSignOutUrl(providerLabel: TConfigLabel) {
-		const provider = this.getProvider(providerLabel);
+	public async getSignOutUrl() {
 		// TODO: get sign out url
 	}
 
-	public getSession(providerLabel: TConfigLabel) {
-		const provider = this.getProvider(providerLabel);
-		assertDefined(provider);
-		provider.config.storage.load(STORAGE_KEYS.SESSION);
+	public async getSession() {
+		const serializedSession = await this.config.storage.load(
+			STORAGE_KEYS.SESSION,
+		);
+		if (!serializedSession) {
+			return undefined;
+		}
+		return await this.config.sessionSerialiser.parse(serializedSession);
 	}
 
-	public deleteSession(providerLabel: TConfigLabel) {
-		const provider = this.getProvider(providerLabel);
-		assertDefined(provider);
-		provider.config.storage.delete(STORAGE_KEYS.SESSION);
+	public async deleteSession() {
+		await this.config.storage.delete(STORAGE_KEYS.SESSION);
 	}
 
-	public parseRedirectRequest(requestedUrl: string) {
-		// TODO: redirect handler for all providers
-	}
+	// TODO: redirect handler
+	public async handleRedirect(
+		_requestedUrl: string,
+	): Promise<{ session: TSession; state: TState } | { error: string }> {
+		// TODO: parse /authorize redirect and store code
 
-	private getProvider(providerLabel: TConfigLabel) {
-		const provider = this.configs.find((c) => c.label === providerLabel);
-		assertDefined(provider);
-		return provider;
+		// Load initial login state
+		const serializedState = await this.config.storage.load(STORAGE_KEYS.STATE);
+		if (serializedState === undefined) {
+			throw new Error("State string not found in storage.");
+		}
+		const state = await this.config.stateSerialiser.parse(serializedState);
+
+		// Cleanup
+		await this.config.storage.delete(STORAGE_KEYS.STATE);
+
+		return { session: {} as TSession, state: state };
 	}
 }
 
@@ -63,5 +80,4 @@ export class ConfidentialClient<
 // - [x] getSignOutUrl()
 // - [x] getSession() // This will auto refresh the token if expired
 // - [x] deleteSession()
-// - [ ] getSignInError()
-// - [ ] redirectHandler(HTTP req url) // This willl then trigger the session persistence
+// - [x] redirectHandler(HTTP req url) // This willl then trigger the session persistence

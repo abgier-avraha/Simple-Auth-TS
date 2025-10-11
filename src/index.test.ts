@@ -1,15 +1,10 @@
 import { expect, test, vi } from "vitest";
-import type {
-	SimpleAuthConfidentialProvider,
-	SimpleAuthPublicProvider,
-} from "./provider.js";
-import {
-	getDefaultEncryptedSerializer,
-	getDefaultSerializer,
-} from "./serialization.js";
-import { getDefaultLocalStorage } from "./storage.js";
+import type { SimpleAuthConfidentialClientConfig } from "./config.js";
+import { DefaultSerializer, EncryptedSerializer } from "./serialization.js";
+import { InMemoryStorage } from "./storage.js";
+import { ConfidentialClient } from "./index.js";
 
-test("Encryption serializer works", () => {
+test("Encryption serializer works", async () => {
 	// Mock random bytes to fixed value
 	vi.mock("crypto", async () => {
 		const actual = await vi.importActual("crypto");
@@ -19,50 +14,36 @@ test("Encryption serializer works", () => {
 		};
 	});
 
-	const encryptedSerializer = getDefaultEncryptedSerializer("<key>");
+	const encryptedSerializer = new EncryptedSerializer("<key>");
 
 	// Test serialization
-	const serialized = encryptedSerializer.stringify("This is a test.");
+	const serialized = await encryptedSerializer.stringify("This is a test.");
 	expect(serialized).toBe(
 		"YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFxNbjMUzaeFFr1a3QN58ZHGQTTpLozdCsg4g10FUEp35yHI27548Xg",
 	);
 
 	// Test parsing
-	const parsed = encryptedSerializer.parse(serialized);
+	const parsed = await encryptedSerializer.parse(serialized);
 	expect(parsed).toBe("This is a test.");
 });
 
-test("Pulbic client authorize and exchange token", () => {
-	const apple: SimpleAuthConfidentialProvider<unknown, unknown> = {
-		label: "Apple",
-		config: {
-			client_id: "1",
-			client_secret: "2",
-			redirect_uri: "https://",
-			scope: ["openid"],
-			sessionSerialiser: getDefaultEncryptedSerializer("key"),
-			stateSerialiser: getDefaultSerializer(),
-			// TODO: cookie storage
-			storage: {
-				async load(_key) {
-					return "";
-				},
-				async save(_key, _value) {},
-			},
-		},
-	};
+test("Can get sign in url for confidential client", async () => {
+	const playgroundConfig: SimpleAuthConfidentialClientConfig<unknown, string> =
+		{
+			issuerUrl: process.env.ISSUER_URL,
+			clientId: process.env.CLIENT_ID,
+			client_secret: process.env.CLIENT_SECRET,
+			redirectUri: "https://www.oauth.com/playground/authorization-code.html",
+			scope: ["photo", "offline_access"],
+			sessionSerialiser: new EncryptedSerializer("key"),
+			stateSerialiser: new DefaultSerializer(),
+			storage: new InMemoryStorage(),
+		};
 
-	const google: SimpleAuthPublicProvider<unknown, unknown> = {
-		label: "Google",
-		config: {
-			client_id: "1",
-			redirect_uri: "https://",
-			scope: ["openid"],
-			sessionSerialiser: getDefaultSerializer(),
-			stateSerialiser: getDefaultSerializer(),
-			storage: getDefaultLocalStorage(),
-		},
-	};
+	const client = new ConfidentialClient(playgroundConfig);
+	const signInUrl = await client.getSignInUrl("1GCOfvNKn1edDk61");
 
-	const _authConfigs = [apple, google];
+	expect(signInUrl).toBe(
+		"https://www.oauth.com/playground/auth-dialog.html?response_type=code&client_id=S-WhFb6bwhNuV9UxIdrhxjje&redirect_uri=https%3A%2F%2Fwww.oauth.com%2Fplayground%2Fauthorization-code.html&scope=photo+offline_access&state=IjFHQ09mdk5LbjFlZERrNjEi",
+	);
 });

@@ -4,16 +4,36 @@ export interface IStorage {
 	delete(key: string): Promise<void>;
 }
 
-export const getDefaultLocalStorage: () => IStorage = () => ({
-	save: async (key: string, value: string) => {
-		return localStorage.setItem(key, value);
-	},
+export class LocalStorage implements IStorage {
+	async save(key: string, value: string): Promise<void> {
+		localStorage.setItem(key, value);
+	}
 
-	load: async (key: string) => {
+	async load(key: string): Promise<string | undefined> {
 		return localStorage.getItem(key) ?? undefined;
-	},
+	}
 
-	delete: async (key: string) => {
-		return localStorage.removeItem(key);
-	},
-});
+	async delete(key: string): Promise<void> {
+		localStorage.removeItem(key);
+	}
+}
+
+export class InMemoryStorage implements IStorage {
+	private store: Map<string, string>;
+
+	constructor() {
+		this.store = new Map();
+	}
+
+	async save(key: string, value: string): Promise<void> {
+		this.store.set(key, value);
+	}
+
+	async load(key: string): Promise<string | undefined> {
+		return this.store.get(key);
+	}
+
+	async delete(key: string): Promise<void> {
+		this.store.delete(key);
+	}
+}

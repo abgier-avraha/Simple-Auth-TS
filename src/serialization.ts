@@ -1,34 +1,38 @@
 import { AESEncryption } from "./encryption.js";
 
 export interface ISerializer<T> {
-	stringify: (data: T) => string;
-	parse: (string: string) => T;
+	stringify: (data: T) => Promise<string>;
+	parse: (string: string) => Promise<T>;
 }
 
-export const getDefaultSerializer: <T>() => ISerializer<T> = () => {
-	return {
-		stringify(data) {
-			return btoa(JSON.stringify(data));
-		},
-		parse(data) {
-			return JSON.parse(atob(data));
-		},
-	};
-};
+// Default serializer: base64 + JSON
+export class DefaultSerializer<T> implements ISerializer<T> {
+	async stringify(data: T): Promise<string> {
+		return btoa(JSON.stringify(data));
+	}
 
-export const getDefaultEncryptedSerializer = <T>(
-	key: string,
-): ISerializer<T> => {
-	const defaultSerializer = getDefaultSerializer();
-	const aes = new AESEncryption(key);
+	async parse(data: string): Promise<T> {
+		return JSON.parse(atob(data));
+	}
+}
 
-	return {
-		stringify(data: T): string {
-			return aes.encrypt(defaultSerializer.stringify(data));
-		},
+// Encrypted serializer: wraps another serializer (composition)
+export class EncryptedSerializer<T> implements ISerializer<T> {
+	private readonly aes: AESEncryption;
+	private readonly innerSerializer: ISerializer<T>;
 
-		parse(data: string): T {
-			return defaultSerializer.parse(aes.decrypt(data)) as T;
-		},
-	};
-};
+	constructor(key: string) {
+		this.aes = new AESEncryption(key);
+		this.innerSerializer = new DefaultSerializer<T>();
+	}
+
+	async stringify(data: T): Promise<string> {
+		const serialized = await this.innerSerializer.stringify(data);
+		return this.aes.encrypt(serialized);
+	}
+
+	async parse(data: string): Promise<T> {
+		const decrypted = this.aes.decrypt(data);
+		return this.innerSerializer.parse(decrypted);
+	}
+}

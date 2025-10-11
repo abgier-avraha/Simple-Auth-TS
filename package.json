@@ -14,7 +14,7 @@
 		"dist"
 	],
 	"scripts": {
-		"format": "biome lint --fix . && biome format --write . && tsc",
+		"format": "biome lint --fix ./src && biome format --write ./src && tsc",
 		"test": "vitest",
 		"clean": "rimraf dist",
 		"build": "npm run clean && tsc",
