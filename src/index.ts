@@ -11,9 +11,11 @@ interface IDiscoveryDocument {
 	authorization_endpoint: string;
 	token_endpoint: string;
 	userinfo_endpoint: string;
+	end_session_endpoint: string;
 	jwks_uri: string;
 	introspection_endpoint: string;
 	scopes_supported: string[];
+	grant_types_supported: string[];
 }
 
 export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
@@ -28,6 +30,7 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 		>,
 	) {}
 
+	// TODO: add token revocation
 	// TODO: add token validation for id and access
 
 	public async getSignInUrl(state: TState) {
@@ -68,7 +71,17 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 	}
 
 	public async getSignOutUrl() {
-		// TODO: get sign out url
+		const discoveryDocument = await this.getDiscoveryDocument();
+
+		if (this.config.endpoints.authorize) {
+			return this.config.endpoints.end_sesssion;
+		} else if (discoveryDocument) {
+			return discoveryDocument.end_session_endpoint;
+		}
+
+		throw new Error(
+			"No end session endpoint found in config or discovery document.",
+		);
 	}
 
 	public async getIdToken() {
@@ -139,7 +152,6 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 			}
 
 			const data = await res.json();
-			console.log(discoveryUrl);
 
 			// Optionally pick specific fields you care about:
 			this.cachedDiscoveryDocument = {
@@ -149,8 +161,11 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 				userinfo_endpoint: data.userinfo_endpoint,
 				jwks_uri: data.jwks_uri,
 				introspection_endpoint: data.introspection_endpoint,
+				end_session_endpoint: data.end_session_endpoint,
 				scopes_supported: data.scopes_supported,
+				grant_types_supported: data.grant_types_supported,
 			};
+
 			return this.cachedDiscoveryDocument;
 		} catch (err) {
 			console.error("Error fetching discovery document:", err);

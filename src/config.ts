@@ -12,7 +12,7 @@ export interface SimpleAuthPublicClientConfig<
 		discovery?: string;
 		token?: string;
 		authorize?: string;
-		revocation?: string;
+		end_sesssion?: string;
 		userInfo?: string;
 	};
 	clientId: string;
