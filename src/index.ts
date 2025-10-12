@@ -1,6 +1,6 @@
 import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
 	ID_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
 	STATE: "SIMPLE_AUTH_STATE",
@@ -110,12 +110,12 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 		await this.config.storage.delete(STORAGE_KEYS.STATE);
 	}
 
-	// TODO: redirect handler
 	public async handleRedirect(
-		_requestedUrl: string,
-	): Promise<{ session: TAccessToken; state: TState } | { error: string }> {
-		// TODO: parse /authorize redirect and store code
-
+		requestedUrl: string,
+	): Promise<
+		| { idToken: TIdToken; accessToken: TAccessToken; state: TState }
+		| { error: string }
+	> {
 		// Load initial login state
 		const serializedState = await this.config.storage.load(STORAGE_KEYS.STATE);
 		if (serializedState === undefined) {
@@ -123,13 +123,59 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 		}
 		const state = await this.config.stateSerialiser.parse(serializedState);
 
+		// Code exchange
+		const redirectUrlParams = this.parseQueryParams(requestedUrl);
+		const bodyData = {
+			grant_type: "authorization_code",
+			code: redirectUrlParams.code,
+			redirect_uri: this.config.redirectUrl,
+			client_id: this.config.clientId,
+			client_secret: this.config.clientSecret,
+		};
+
+		const body = Object.entries(bodyData)
+			.map(
+				([key, value]) =>
+					`${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+			)
+			.join("&");
+
+		const discoveryDocument = await this.getDiscoveryDocument();
+		let tokenUrl: string | undefined;
+		if (this.config.endpoints.token) {
+			tokenUrl = this.config.endpoints.token;
+		} else if (discoveryDocument) {
+			tokenUrl = discoveryDocument.token_endpoint;
+		} else {
+			throw new Error(
+				"No end token endpoint found in config or discovery document.",
+			);
+		}
+
+		const response = await fetch(tokenUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body,
+		});
+
+		const tokenData = await response.json();
+
+		// TODO:
+		console.log(tokenData);
+
 		// TODO: store access token
 		// TODO: store id token
 
 		// Cleanup
 		await this.config.storage.delete(STORAGE_KEYS.STATE);
 
-		return { session: {} as TAccessToken, state: state };
+		return {
+			idToken: {} as TIdToken,
+			accessToken: {} as TAccessToken,
+			state: state,
+		};
 	}
 
 	private async getDiscoveryDocument(): Promise<
@@ -170,6 +216,17 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 		} catch (err) {
 			console.error("Error fetching discovery document:", err);
 		}
+	}
+
+	private parseQueryParams(urlStr: string): Record<string, string> {
+		const parsedUrl = new URL(urlStr);
+		const params: Record<string, string> = {};
+
+		parsedUrl.searchParams.forEach((value, key) => {
+			params[key] = value;
+		});
+
+		return params;
 	}
 }
 

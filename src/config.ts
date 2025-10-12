@@ -32,7 +32,7 @@ export interface SimpleAuthPublicClientConfig<
 
 export interface SimpleAuthConfidentialClientConfig<
 	TAccessToken,
-	TState,
+	TState extends {},
 	TIdToken,
 	TUserInfo,
 > extends SimpleAuthPublicClientConfig<
