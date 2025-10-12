@@ -28,22 +28,25 @@ test("Encryption serializer works", async () => {
 });
 
 test("Can get sign in url for confidential client", async () => {
-	const playgroundConfig: SimpleAuthConfidentialClientConfig<unknown, string> =
-		{
-			issuerUrl: process.env.ISSUER_URL,
-			clientId: process.env.CLIENT_ID,
-			client_secret: process.env.CLIENT_SECRET,
-			redirectUri: "https://www.oauth.com/playground/authorization-code.html",
-			scope: ["photo", "offline_access"],
-			sessionSerialiser: new EncryptedSerializer("key"),
-			stateSerialiser: new DefaultSerializer(),
-			storage: new InMemoryStorage(),
-		};
+	const config: SimpleAuthConfidentialClientConfig<void, void, void, void> = {
+		endpoints: {
+			issuer: "http://localhost:8080/realms/demo",
+		},
+		clientId: "test-client",
+		clientSecret: "test-client-secret",
+		redirectUrl: "http://localhost:3000/callback",
+		scope: ["openid", "profile", "email"],
+		accessTokenSerialiser: new EncryptedSerializer("key"),
+		idTokenSerialiser: new EncryptedSerializer("key"),
+		userInfoSerialiser: new EncryptedSerializer("key"),
+		stateSerialiser: new DefaultSerializer(),
+		storage: new InMemoryStorage(),
+	};
 
-	const client = new ConfidentialClient(playgroundConfig);
-	const signInUrl = await client.getSignInUrl("1GCOfvNKn1edDk61");
+	const client = new ConfidentialClient(config);
+	const signInUrl = await client.getSignInUrl();
 
 	expect(signInUrl).toBe(
-		"https://www.oauth.com/playground/auth-dialog.html?response_type=code&client_id=S-WhFb6bwhNuV9UxIdrhxjje&redirect_uri=https%3A%2F%2Fwww.oauth.com%2Fplayground%2Fauthorization-code.html&scope=photo+offline_access&state=IjFHQ09mdk5LbjFlZERrNjEi",
+		"http://localhost:8080/realms/demo/protocol/openid-connect/auth?response_type=code&client_id=test-client&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&scope=openid+profile+email&state=dW5kZWZpbmVk",
 	);
 });
