@@ -26,9 +26,6 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		private config: SimpleAuthConfidentialClientConfig<TState, TUserInfo>,
 	) {}
 
-	// TODO: add token revocation
-	// TODO: add token validation for id and access
-
 	public async getSignInUrl(state: TState) {
 		const serializedState = await this.config.stateSerialiser.stringify(state);
 		await this.config.storage.save(STORAGE_KEYS.STATE, serializedState);
@@ -215,6 +212,10 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		};
 	}
 
+	// TODO: validate and parse tokens
+
+	// TODO: refresh tokens
+
 	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
 		if (this.cachedDiscoveryDocument) {
 			return this.cachedDiscoveryDocument;
@@ -264,22 +265,3 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		return params;
 	}
 }
-
-// TODO: class that consumes the config to be used on confidential clients
-// TODO: method to output a public client config which omits all of the client secrets
-// TODO: class that consumes the config to be used on public clients
-
-// Config<SessionGeneric>
-// - [x] OIDC provider config ??? Auth code flow only?
-
-// Session persistence
-// Has its own interface, comes with drivers and no-op driver
-// - [x] storeSession(token)
-// - [x] loadSession()
-
-// Public methods
-// - [x] getSignInUrl()
-// - [x] getSignOutUrl()
-// - [x] geTAccessToken() // This will auto refresh the token if expired
-// - [x] deleteSession()
-// - [x] redirectHandler(HTTP req url) // This willl then trigger the session persistence
