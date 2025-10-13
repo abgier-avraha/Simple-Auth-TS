@@ -1,12 +1,7 @@
 import type { ISerializer } from "./serialization.js";
 import type { IStorage } from "./storage.js";
 
-export interface SimpleAuthPublicClientConfig<
-	TAccessToken,
-	TState,
-	TIdToken,
-	TUserInfo,
-> {
+export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	endpoints: {
 		issuer: string;
 		discovery?: string;
@@ -18,10 +13,8 @@ export interface SimpleAuthPublicClientConfig<
 	clientId: string;
 	redirectUrl: string;
 	scope: string[];
-	// Serialises the session before storing
-	accessTokenSerialiser: ISerializer<TAccessToken>;
-	// Serialises the session before storing
-	idTokenSerialiser?: ISerializer<TIdToken>;
+	// Serialises access tokens, id tokens and refresh tokens
+	tokenSerialiser: ISerializer<string>;
 	// Serialises the user info before storing
 	userInfoSerialiser?: ISerializer<TUserInfo>;
 	// Serialises the state before storing
@@ -31,16 +24,9 @@ export interface SimpleAuthPublicClientConfig<
 }
 
 export interface SimpleAuthConfidentialClientConfig<
-	TAccessToken,
 	TState extends {},
-	TIdToken,
 	TUserInfo,
-> extends SimpleAuthPublicClientConfig<
-		TAccessToken,
-		TState,
-		TIdToken,
-		TUserInfo
-	> {
+> extends SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	clientSecret: string;
 }
 

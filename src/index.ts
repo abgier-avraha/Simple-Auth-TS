@@ -3,6 +3,7 @@ import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
 	ID_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
+	REFRESH_TOKEN: "SIMPLE_AUTH_REFRESH_TOKEN",
 	STATE: "SIMPLE_AUTH_STATE",
 };
 
@@ -18,16 +19,11 @@ interface IDiscoveryDocument {
 	grant_types_supported: string[];
 }
 
-export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
+export class ConfidentialClient<TState extends {}, TUserInfo> {
 	private cachedDiscoveryDocument?: IDiscoveryDocument;
 
 	constructor(
-		private config: SimpleAuthConfidentialClientConfig<
-			TAccessToken,
-			TState,
-			TIdToken,
-			TUserInfo
-		>,
+		private config: SimpleAuthConfidentialClientConfig<TState, TUserInfo>,
 	) {}
 
 	// TODO: add token revocation
@@ -85,23 +81,31 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 	}
 
 	public async getIdToken() {
-		const serializedSession = await this.config.storage.load(
-			STORAGE_KEYS.ID_TOKEN,
-		);
-		if (!serializedSession) {
+		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
+		if (!idToken) {
 			return undefined;
 		}
-		return await this.config.accessTokenSerialiser.parse(serializedSession);
+		return idToken;
 	}
 
 	public async getAccessToken() {
-		const serializedSession = await this.config.storage.load(
+		const accessToken = await this.config.storage.load(
 			STORAGE_KEYS.ACCESS_TOKEN,
 		);
-		if (!serializedSession) {
+		if (!accessToken) {
 			return undefined;
 		}
-		return await this.config.accessTokenSerialiser.parse(serializedSession);
+		return accessToken;
+	}
+
+	public async getRefreshToken() {
+		const refreshToken = await this.config.storage.load(
+			STORAGE_KEYS.REFRESH_TOKEN,
+		);
+		if (!refreshToken) {
+			return undefined;
+		}
+		return refreshToken;
 	}
 
 	public async deleteSession() {
@@ -110,12 +114,12 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 		await this.config.storage.delete(STORAGE_KEYS.STATE);
 	}
 
-	public async handleRedirect(
-		requestedUrl: string,
-	): Promise<
-		| { idToken: TIdToken; accessToken: TAccessToken; state: TState }
-		| { error: string }
-	> {
+	public async handleRedirect(requestedUrl: string): Promise<{
+		idToken: string;
+		accessToken: string;
+		refreshToken: string;
+		state: TState;
+	}> {
 		// Load initial login state
 		const serializedState = await this.config.storage.load(STORAGE_KEYS.STATE);
 		if (serializedState === undefined) {
@@ -160,27 +164,58 @@ export class ConfidentialClient<TAccessToken, TState, TIdToken, TUserInfo> {
 			body,
 		});
 
-		const tokenData = await response.json();
-
-		// TODO:
-		console.log(tokenData);
-
-		// TODO: store access token
-		// TODO: store id token
+		const tokenData: {
+			access_token: string;
+			id_token: string;
+			refresh_token: string;
+			error: string;
+			error_description: string;
+		} = await response.json();
 
 		// Cleanup
 		await this.config.storage.delete(STORAGE_KEYS.STATE);
 
+		// Throw error if error in code exchange response
+		if (tokenData.error) {
+			throw new Error(
+				JSON.stringify({
+					error: tokenData.error,
+					error_description: tokenData.error_description,
+				}),
+			);
+		}
+
+		// Store all tokens
+		if (tokenData.access_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.access_token,
+			);
+			this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+		}
+
+		if (tokenData.id_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.id_token,
+			);
+			this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+		}
+
+		if (tokenData.refresh_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.refresh_token,
+			);
+			this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+		}
+
 		return {
-			idToken: {} as TIdToken,
-			accessToken: {} as TAccessToken,
+			idToken: tokenData.id_token,
+			accessToken: tokenData.access_token,
+			refreshToken: tokenData.refresh_token,
 			state: state,
 		};
 	}
 
-	private async getDiscoveryDocument(): Promise<
-		IDiscoveryDocument | undefined
-	> {
+	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
 		if (this.cachedDiscoveryDocument) {
 			return this.cachedDiscoveryDocument;
 		}
