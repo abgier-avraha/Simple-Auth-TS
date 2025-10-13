@@ -96,31 +96,24 @@ test(
 			}),
 		);
 
-		const server = runClientServer();
-
 		// Act
+		const server = runClientServer();
 		const signInUrl = await client.getSignInUrl({
 			targetUrl: "<target-url>",
 			csrf: "<csrf>",
 		});
-
 		const browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
 		await page.goto(signInUrl);
-
 		await page.fill('input[name="username"]', "test@example.com");
 		await page.fill('input[name="password"]', "password");
 		await page.click('input[type="submit"]');
-
 		await page.waitForURL("**/callback*");
-
 		const redirectedUrl = page.url();
-
 		await browser.close();
+		server.stop();
 
 		const parsedRedirect = await client.handleRedirect(redirectedUrl);
-
-		server.stop();
 
 		// Assert
 		const discoveryDocument = await client.getDiscoveryDocument();

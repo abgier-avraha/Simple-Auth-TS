@@ -1,6 +1,6 @@
-import { createRemoteJWKSet, jwtVerify, JWTPayload } from "jose";
-import http from "http";
-import url from "url";
+import { createRemoteJWKSet, jwtVerify } from "jose";
+import http from "node:http";
+import url from "node:url";
 
 const PORT = 3000;
 export const runClientServer = () => {
