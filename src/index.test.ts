@@ -124,7 +124,9 @@ test(
 		expect(accessToken.payload.email).toBe("test@example.com");
 
 		// Validate id token
-		const idToken = await client.validateJWT(parsedRedirect.idToken);
+		const idToken = await client.validateJWT(parsedRedirect.idToken, {
+			disableAudienceValidation: false,
+		});
 		expect(idToken.payload.name).toBe("Test User");
 		expect(idToken.payload.preferred_username).toBe("testuser");
 		expect(idToken.payload.given_name).toBe("Test");

@@ -216,10 +216,7 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 	public async validateJWT(
 		token: string,
-		options?: {
-			clockToleranceSeconds?: number;
-			audience?: string;
-		},
+		args?: { disableAudienceValidation: boolean },
 	) {
 		const discoveryDocument = await this.getDiscoveryDocument();
 		if (!discoveryDocument) {
@@ -228,10 +225,13 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 		const jwksSet = await this.getJwksSet(discoveryDocument);
 
+		const validateAudience =
+			!args?.disableAudienceValidation && this.config.audience !== undefined;
+
 		return await jwtVerify(token, jwksSet, {
 			issuer: discoveryDocument.issuer,
-			audience: options?.audience ? options.audience : undefined,
-			clockTolerance: options?.clockToleranceSeconds,
+			audience: validateAudience ? this.config.audience : undefined,
+			clockTolerance: this.config.clockToleranceSeconds,
 		});
 	}
 
