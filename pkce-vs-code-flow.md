@@ -1,4 +1,4 @@
-# OAuth 2.0 Authorization Code Flow for non PKCE
+# OAuth 2.0 PKCE vs Authorization Code Flow
 
 ### PKCE (Public Clients)
 
@@ -14,15 +14,10 @@ It works like this:
 Even if an attacker intercepts the authorization code or the challenge, they cannot redeem it without the original verifier.
 
 
-### Non-PKCE (Confidential Clients)
+### Authorization Code Flow (Confidential Clients)
 
 For **backend applications**, a `client_secret` is stored securely on the server.  
-This secret is used during the token exchange to prove that the request comes from the legitimate client.
-
-> “In confidential client flows, the `client_secret` authenticates the client during the code-to-token exchange.”
-
-
----
+This secret is used during the token exchange to prove that the request comes from the legitimate client. The "client" in this case being your server.
 
 ### 1. Authorization Request
 
