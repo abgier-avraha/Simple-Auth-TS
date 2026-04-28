@@ -116,7 +116,7 @@ test(
 		const accessToken = await client.validateJWT(parsedRedirect.accessToken);
 
 		// Validate acccess token
-		expect(accessToken.payload.scope).toBe("openid profile email");
+		expect(accessToken.payload.scope).toBe("openid email profile");
 		expect(accessToken.payload.name).toBe("Test User");
 		expect(accessToken.payload.preferred_username).toBe("testuser");
 		expect(accessToken.payload.given_name).toBe("Test");
@@ -138,7 +138,7 @@ test(
 			clientSecret: "test-client-secret",
 		});
 		expect(refreshToken.scope).toBe(
-			"openid profile basic email web-origins roles acr",
+			"openid roles acr basic email profile web-origins",
 		);
 		expect(refreshToken.name).toBe("Test User");
 		expect(refreshToken.preferred_username).toBe("testuser");

@@ -214,7 +214,13 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		};
 	}
 
-	public async validateJWT(token: string) {
+	public async validateJWT(
+		token: string,
+		options?: {
+			clockToleranceSeconds?: number;
+			audience?: string;
+		},
+	) {
 		const discoveryDocument = await this.getDiscoveryDocument();
 		if (!discoveryDocument) {
 			throw new Error("Discovery document not found");
@@ -224,9 +230,8 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 		return await jwtVerify(token, jwksSet, {
 			issuer: discoveryDocument.issuer,
-			// TODO: validate audience? Maybe an auth config option?
-			// audience: this.config.clientId,
-			clockTolerance: this.config.validationOptions?.clockToleranceSeconds,
+			audience: options?.audience ? options.audience : undefined,
+			clockTolerance: options?.clockToleranceSeconds,
 		});
 	}
 
@@ -334,7 +339,6 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 	}
 
 	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
-		// TODO: use a cache key
 		if (this.cachedDiscoveryDocument) {
 			return this.cachedDiscoveryDocument;
 		}

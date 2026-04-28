@@ -21,9 +21,6 @@ export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	stateSerialiser: ISerializer<TState>;
 	// For storing the serialised state or session
 	storage: IStorage;
-	validationOptions?: {
-		clockToleranceSeconds?: number;
-	};
 }
 
 export interface SimpleAuthConfidentialClientConfig<
@@ -32,6 +29,3 @@ export interface SimpleAuthConfidentialClientConfig<
 > extends SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	clientSecret: string;
 }
-
-// TODO: add cognito credentials provider, uses direct aws sdk API call to get token
-// TODO: or just allow devs to manually call the AWS API and use the storage methods to save the JWT
