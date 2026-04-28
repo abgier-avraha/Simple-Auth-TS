@@ -4,11 +4,7 @@ import { DefaultSerializer, EncryptedSerializer } from "./serialization.js";
 import { InMemoryStorage } from "./storage.js";
 import { ConfidentialClient, STORAGE_KEYS } from "./index.js";
 import { chromium } from "playwright";
-import {
-	introspectToken,
-	runClientServer,
-	validateJWT,
-} from "./test-utilts.js";
+import { introspectToken, runClientServer } from "./test-utils.js";
 
 type IState = { targetUrl: string; csrf: string };
 
@@ -116,16 +112,7 @@ test(
 		const parsedRedirect = await client.handleRedirect(redirectedUrl);
 
 		// Assert
-		const discoveryDocument = await client.getDiscoveryDocument();
-		if (!discoveryDocument) {
-			throw new Error("Discovery document not found");
-		}
-
-		const accessToken = await validateJWT({
-			token: parsedRedirect.accessToken,
-			issuer: discoveryDocument.issuer,
-			jwksUri: discoveryDocument.jwks_uri,
-		});
+		const accessToken = await client.validateJWT(parsedRedirect.accessToken);
 
 		// Validate acccess token
 		expect(accessToken.payload.scope).toBe("openid profile email");
@@ -136,11 +123,7 @@ test(
 		expect(accessToken.payload.email).toBe("test@example.com");
 
 		// Validate id token
-		const idToken = await validateJWT({
-			token: parsedRedirect.idToken,
-			issuer: discoveryDocument.issuer,
-			jwksUri: discoveryDocument.jwks_uri,
-		});
+		const idToken = await client.validateJWT(parsedRedirect.idToken);
 		expect(idToken.payload.name).toBe("Test User");
 		expect(idToken.payload.preferred_username).toBe("testuser");
 		expect(idToken.payload.given_name).toBe("Test");

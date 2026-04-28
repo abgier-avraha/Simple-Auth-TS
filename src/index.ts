@@ -1,3 +1,4 @@
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 
 export const STORAGE_KEYS = {
@@ -212,11 +213,22 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		};
 	}
 
-	// TODO: validate and parse tokens
+	public async validateJWT(token: string) {
+		const discoveryDocument = await this.getDiscoveryDocument();
+		if (!discoveryDocument) {
+			throw new Error("Discovery document not found");
+		}
 
+		const jwks = createRemoteJWKSet(new URL(discoveryDocument.jwks_uri));
+
+		return await jwtVerify(token, jwks, {
+			issuer: discoveryDocument.issuer,
+		});
+	}
 	// TODO: refresh tokens
 
 	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
+		// TODO: use a cache key
 		if (this.cachedDiscoveryDocument) {
 			return this.cachedDiscoveryDocument;
 		}
@@ -265,3 +277,7 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		return params;
 	}
 }
+
+/* Notes:
+	For cognito credential login we can 
+*/

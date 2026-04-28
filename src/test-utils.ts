@@ -39,18 +39,6 @@ export const runClientServer = () => {
 	};
 };
 
-export async function validateJWT(options: {
-	token: string;
-	issuer: string;
-	jwksUri: string;
-}) {
-	const jwks = createRemoteJWKSet(new URL(options.jwksUri));
-
-	return await jwtVerify(options.token, jwks, {
-		issuer: options.issuer,
-	});
-}
-
 export async function introspectToken(options: {
 	token: string;
 	clientId: string;
