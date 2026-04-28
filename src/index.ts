@@ -22,6 +22,7 @@ interface IDiscoveryDocument {
 
 export class ConfidentialClient<TState extends {}, TUserInfo> {
 	private cachedDiscoveryDocument?: IDiscoveryDocument;
+	private cachedJwksSet?: ReturnType<typeof createRemoteJWKSet>;
 
 	constructor(
 		private config: SimpleAuthConfidentialClientConfig<TState, TUserInfo>,
@@ -219,10 +220,13 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 			throw new Error("Discovery document not found");
 		}
 
-		const jwks = createRemoteJWKSet(new URL(discoveryDocument.jwks_uri));
+		const jwksSet = await this.getJwksSet(discoveryDocument);
 
-		return await jwtVerify(token, jwks, {
+		return await jwtVerify(token, jwksSet, {
 			issuer: discoveryDocument.issuer,
+			// TODO: validate audience? Maybe an auth config option?
+			// audience: this.config.clientId,
+			clockTolerance: this.config.validationOptions?.clockToleranceSeconds,
 		});
 	}
 
@@ -370,6 +374,16 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 	// TODO: add a config option to auto refresh
 	// TODO: check the exp of the tokens before reading and auto refresh if enabled
+
+	private async getJwksSet(discoveryDocument: IDiscoveryDocument) {
+		if (!this.cachedJwksSet) {
+			this.cachedJwksSet = createRemoteJWKSet(
+				new URL(discoveryDocument.jwks_uri),
+			);
+		}
+
+		return this.cachedJwksSet;
+	}
 
 	private parseQueryParams(urlStr: string): Record<string, string> {
 		const parsedUrl = new URL(urlStr);

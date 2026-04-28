@@ -21,6 +21,9 @@ export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	stateSerialiser: ISerializer<TState>;
 	// For storing the serialised state or session
 	storage: IStorage;
+	validationOptions?: {
+		clockToleranceSeconds?: number;
+	};
 }
 
 export interface SimpleAuthConfidentialClientConfig<
