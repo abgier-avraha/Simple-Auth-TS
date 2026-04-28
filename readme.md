@@ -69,7 +69,7 @@ await client.verifyJwt(session.accessToken)
 const updatedTokens = await client.getValidSession({ forceRefresh: true });
 ```
 
-### Signin Out
+### Signing Out
 
 Get the sign out url using this method.
 
