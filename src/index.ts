@@ -2,8 +2,8 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 
 export const STORAGE_KEYS = {
-	ACCESS_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
-	ID_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
+	ACCESS_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
+	ID_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
 	REFRESH_TOKEN: "SIMPLE_AUTH_REFRESH_TOKEN",
 	STATE: "SIMPLE_AUTH_STATE",
 };
@@ -20,13 +20,11 @@ interface IDiscoveryDocument {
 	grant_types_supported: string[];
 }
 
-export class ConfidentialClient<TState extends {}, TUserInfo> {
+export class ConfidentialClient<TState extends {}> {
 	private cachedDiscoveryDocument?: IDiscoveryDocument;
 	private cachedJwksSet?: ReturnType<typeof createRemoteJWKSet>;
 
-	constructor(
-		private config: SimpleAuthConfidentialClientConfig<TState, TUserInfo>,
-	) {}
+	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
 	public async getSignInUrl(state: TState) {
 		const serializedState = await this.config.stateSerialiser.stringify(state);
@@ -79,32 +77,25 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		);
 	}
 
-	public async getIdToken() {
-		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
-		if (!idToken) {
-			return undefined;
-		}
-		return idToken;
-	}
+	// Will automatically refresh your session
+	public async getValidSession(args?: { forceRefresh: boolean }) {
+		const accessToken = await this.getAccessToken();
 
-	public async getAccessToken() {
-		const accessToken = await this.config.storage.load(
-			STORAGE_KEYS.ACCESS_TOKEN,
-		);
 		if (!accessToken) {
-			return undefined;
+			throw new Error("No access token found");
 		}
-		return accessToken;
-	}
 
-	public async getRefreshToken() {
-		const refreshToken = await this.config.storage.load(
-			STORAGE_KEYS.REFRESH_TOKEN,
-		);
-		if (!refreshToken) {
-			return undefined;
+		// Refresh
+		if (!this.isExpired(accessToken) && !args?.forceRefresh) {
+			return {
+				accessToken,
+				idToken: await this.getIdToken(),
+				refreshToken: await this.getRefreshToken(),
+			};
 		}
-		return refreshToken;
+
+		// No refresh required
+		return await this.refreshTokens();
 	}
 
 	public async deleteSession() {
@@ -114,9 +105,9 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 	}
 
 	public async handleRedirect(requestedUrl: string): Promise<{
-		idToken: string;
-		accessToken: string;
-		refreshToken: string;
+		idToken?: string;
+		accessToken?: string;
+		refreshToken?: string;
 		state: TState;
 	}> {
 		// Load initial login state
@@ -164,11 +155,11 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		});
 
 		const tokenData: {
-			access_token: string;
-			id_token: string;
-			refresh_token: string;
-			error: string;
-			error_description: string;
+			access_token?: string;
+			id_token?: string;
+			refresh_token?: string;
+			error?: string;
+			error_description?: string;
 		} = await response.json();
 
 		// Cleanup
@@ -186,24 +177,16 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 		// Store all tokens
 		if (tokenData.access_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.access_token,
-			);
-			this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+			await this.setAccessToken(tokenData.access_token);
 		}
 
 		if (tokenData.id_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.id_token,
-			);
-			this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+			await this.setIdToken(tokenData.id_token);
 		}
 
+		// Important: refresh token may be rotated
 		if (tokenData.refresh_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.refresh_token,
-			);
-			this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+			await this.setRefreshToken(tokenData.refresh_token);
 		}
 
 		return {
@@ -214,9 +197,9 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		};
 	}
 
-	public async validateJWT(
+	public async verifyJwt(
 		token: string,
-		args?: { disableAudienceValidation: boolean },
+		args?: { disableAudienceValidation?: boolean },
 	) {
 		const discoveryDocument = await this.getDiscoveryDocument();
 		if (!discoveryDocument) {
@@ -235,22 +218,57 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		});
 	}
 
-	public async refreshTokens(): Promise<{
+	private async getDiscoveryDocument(): Promise<
+		IDiscoveryDocument | undefined
+	> {
+		if (this.cachedDiscoveryDocument) {
+			return this.cachedDiscoveryDocument;
+		}
+
+		const discoveryUrl = this.config.endpoints.discovery
+			? this.config.endpoints.discovery
+			: `${this.config.endpoints.issuer}/.well-known/openid-configuration`;
+
+		try {
+			const res = await fetch(discoveryUrl);
+			if (!res.ok) {
+				throw new Error(
+					`Failed to fetch discovery document: ${res.status} ${res.statusText}`,
+				);
+			}
+
+			const data = await res.json();
+
+			// Optionally pick specific fields you care about:
+			this.cachedDiscoveryDocument = {
+				issuer: data.issuer,
+				authorization_endpoint: data.authorization_endpoint,
+				token_endpoint: data.token_endpoint,
+				userinfo_endpoint: data.userinfo_endpoint,
+				jwks_uri: data.jwks_uri,
+				introspection_endpoint: data.introspection_endpoint,
+				end_session_endpoint: data.end_session_endpoint,
+				scopes_supported: data.scopes_supported,
+				grant_types_supported: data.grant_types_supported,
+			};
+
+			return this.cachedDiscoveryDocument;
+		} catch (err) {
+			console.error("Error fetching discovery document:", err);
+		}
+	}
+
+	private async refreshTokens(): Promise<{
 		idToken: string;
 		accessToken: string;
 		refreshToken: string;
 	}> {
 		// 1. Load refresh token from storage
-		const storedRefreshToken = await this.config.storage.load(
-			STORAGE_KEYS.REFRESH_TOKEN,
-		);
+		const refreshToken = await this.getRefreshToken();
 
-		if (!storedRefreshToken) {
+		if (!refreshToken) {
 			throw new Error("No refresh token found in storage.");
 		}
-
-		const refreshToken =
-			await this.config.tokenSerialiser.parse(storedRefreshToken);
 
 		// 2. Resolve token endpoint
 		const discoveryDocument = await this.getDiscoveryDocument();
@@ -310,25 +328,16 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 
 		// 6. Store updated tokens
 		if (tokenData.access_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.access_token,
-			);
-			await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+			await this.setAccessToken(tokenData.access_token);
 		}
 
 		if (tokenData.id_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.id_token,
-			);
-			await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+			await this.setIdToken(tokenData.id_token);
 		}
 
 		// Important: refresh token may be rotated
 		if (tokenData.refresh_token) {
-			const serialised = await this.config.tokenSerialiser.stringify(
-				tokenData.refresh_token,
-			);
-			await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+			await this.setRefreshToken(tokenData.refresh_token);
 		}
 
 		return {
@@ -338,46 +347,58 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		};
 	}
 
-	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
-		if (this.cachedDiscoveryDocument) {
-			return this.cachedDiscoveryDocument;
+	private async getIdToken() {
+		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
+		if (!idToken) {
+			return undefined;
 		}
-
-		const discoveryUrl = this.config.endpoints.discovery
-			? this.config.endpoints.discovery
-			: `${this.config.endpoints.issuer}/.well-known/openid-configuration`;
-
-		try {
-			const res = await fetch(discoveryUrl);
-			if (!res.ok) {
-				throw new Error(
-					`Failed to fetch discovery document: ${res.status} ${res.statusText}`,
-				);
-			}
-
-			const data = await res.json();
-
-			// Optionally pick specific fields you care about:
-			this.cachedDiscoveryDocument = {
-				issuer: data.issuer,
-				authorization_endpoint: data.authorization_endpoint,
-				token_endpoint: data.token_endpoint,
-				userinfo_endpoint: data.userinfo_endpoint,
-				jwks_uri: data.jwks_uri,
-				introspection_endpoint: data.introspection_endpoint,
-				end_session_endpoint: data.end_session_endpoint,
-				scopes_supported: data.scopes_supported,
-				grant_types_supported: data.grant_types_supported,
-			};
-
-			return this.cachedDiscoveryDocument;
-		} catch (err) {
-			console.error("Error fetching discovery document:", err);
-		}
+		return this.config.tokenSerialiser.parse(idToken);
 	}
 
-	// TODO: add a config option to auto refresh
-	// TODO: check the exp of the tokens before reading and auto refresh if enabled
+	private async getAccessToken() {
+		const accessToken = await this.config.storage.load(
+			STORAGE_KEYS.ACCESS_TOKEN,
+		);
+		if (!accessToken) {
+			return undefined;
+		}
+		return this.config.tokenSerialiser.parse(accessToken);
+	}
+
+	private async getRefreshToken() {
+		const refreshToken = await this.config.storage.load(
+			STORAGE_KEYS.REFRESH_TOKEN,
+		);
+		if (!refreshToken) {
+			return undefined;
+		}
+		return this.config.tokenSerialiser.parse(refreshToken);
+	}
+
+	private async setIdToken(token: string) {
+		const serialised = await this.config.tokenSerialiser.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+	}
+
+	private async setAccessToken(token: string) {
+		const serialised = await this.config.tokenSerialiser.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+	}
+
+	private async setRefreshToken(token: string) {
+		const serialised = await this.config.tokenSerialiser.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+	}
+
+	private isExpired(token: string): boolean {
+		const [, payloadBase64] = token.split(".");
+		const payload = JSON.parse(
+			Buffer.from(payloadBase64, "base64").toString("utf-8"),
+		);
+
+		const now = Math.floor(Date.now() / 1000);
+		return !payload.exp || payload.exp <= now + 30;
+	}
 
 	private async getJwksSet(discoveryDocument: IDiscoveryDocument) {
 		if (!this.cachedJwksSet) {

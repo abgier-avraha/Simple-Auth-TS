@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { SimpleAuthConfidentialClientConfig } from "./config.js";
 import { DefaultSerializer, EncryptedSerializer } from "./serialization.js";
 import { InMemoryStorage } from "./storage.js";
-import { ConfidentialClient, STORAGE_KEYS } from "./index.js";
+import { ConfidentialClient } from "./index.js";
 import { chromium } from "playwright";
 import { introspectToken, runClientServer } from "./test-utils.js";
 import { assertDefined, sleep } from "./utils.js";
@@ -11,7 +11,7 @@ type IState = { targetUrl: string; csrf: string };
 
 test("Can get sign in url for confidential client", async () => {
 	// Arrange
-	const config: SimpleAuthConfidentialClientConfig<IState, void> = {
+	const config: SimpleAuthConfidentialClientConfig<IState> = {
 		endpoints: {
 			issuer: "http://localhost:8080/realms/demo",
 		},
@@ -20,7 +20,6 @@ test("Can get sign in url for confidential client", async () => {
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
 		tokenSerialiser: new EncryptedSerializer("key"),
-		userInfoSerialiser: new EncryptedSerializer("key"),
 		stateSerialiser: new DefaultSerializer(),
 		storage: new InMemoryStorage(),
 	};
@@ -40,7 +39,7 @@ test("Can get sign in url for confidential client", async () => {
 
 test("Can get sign out for confidential client", async () => {
 	// Arrange
-	const config: SimpleAuthConfidentialClientConfig<IState, void> = {
+	const config: SimpleAuthConfidentialClientConfig<IState> = {
 		endpoints: {
 			issuer: "http://localhost:8080/realms/demo",
 		},
@@ -49,7 +48,6 @@ test("Can get sign out for confidential client", async () => {
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
 		tokenSerialiser: new EncryptedSerializer("key"),
-		userInfoSerialiser: new EncryptedSerializer("key"),
 		stateSerialiser: new DefaultSerializer(),
 		storage: new InMemoryStorage(),
 	};
@@ -69,7 +67,7 @@ test(
 	{ timeout: 5000 },
 	async () => {
 		// Arrange
-		const config: SimpleAuthConfidentialClientConfig<IState, void> = {
+		const config: SimpleAuthConfidentialClientConfig<IState> = {
 			endpoints: {
 				issuer: "http://localhost:8080/realms/demo",
 			},
@@ -78,20 +76,11 @@ test(
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
 			tokenSerialiser: new EncryptedSerializer("key"),
-			userInfoSerialiser: new EncryptedSerializer("key"),
 			stateSerialiser: new DefaultSerializer(),
 			storage: new InMemoryStorage(),
 		};
 
 		const client = new ConfidentialClient(config);
-
-		await config.storage.save(
-			STORAGE_KEYS.STATE,
-			await config.stateSerialiser.stringify({
-				targetUrl: "<target-url>",
-				csrf: "<csrf>",
-			}),
-		);
 
 		// Act
 		const server = runClientServer();
@@ -113,7 +102,9 @@ test(
 		const parsedRedirect = await client.handleRedirect(redirectedUrl);
 
 		// Assert
-		const accessToken = await client.validateJWT(parsedRedirect.accessToken);
+		const accessToken = await client.verifyJwt(
+			assertDefined(parsedRedirect.accessToken),
+		);
 
 		// Validate acccess token
 		expect(accessToken.payload.scope).toBe("openid email profile");
@@ -124,9 +115,9 @@ test(
 		expect(accessToken.payload.email).toBe("test@example.com");
 
 		// Validate id token
-		const idToken = await client.validateJWT(parsedRedirect.idToken, {
-			disableAudienceValidation: false,
-		});
+		const idToken = await client.verifyJwt(
+			assertDefined(parsedRedirect.idToken),
+		);
 		expect(idToken.payload.name).toBe("Test User");
 		expect(idToken.payload.preferred_username).toBe("testuser");
 		expect(idToken.payload.given_name).toBe("Test");
@@ -135,7 +126,7 @@ test(
 
 		// Validate refresh token
 		const refreshToken = await introspectToken({
-			token: parsedRedirect.refreshToken,
+			token: assertDefined(parsedRedirect.refreshToken),
 			clientId: "test-client",
 			clientSecret: "test-client-secret",
 		});
@@ -155,7 +146,7 @@ test(
 	{ timeout: 5000 },
 	async () => {
 		// Arrange
-		const config: SimpleAuthConfidentialClientConfig<IState, void> = {
+		const config: SimpleAuthConfidentialClientConfig<IState> = {
 			endpoints: {
 				issuer: "http://localhost:8080/realms/demo",
 			},
@@ -164,20 +155,11 @@ test(
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
 			tokenSerialiser: new EncryptedSerializer("key"),
-			userInfoSerialiser: new EncryptedSerializer("key"),
 			stateSerialiser: new DefaultSerializer(),
 			storage: new InMemoryStorage(),
 		};
 
 		const client = new ConfidentialClient(config);
-
-		await config.storage.save(
-			STORAGE_KEYS.STATE,
-			await config.stateSerialiser.stringify({
-				targetUrl: "<target-url>",
-				csrf: "<csrf>",
-			}),
-		);
 
 		// Act
 		const server = runClientServer();
@@ -203,7 +185,7 @@ test(
 			clientSecret: "test-client-secret",
 		});
 		const prevRefreshToken = await introspectToken({
-			token: parsedRedirect.refreshToken,
+			token: assertDefined(parsedRedirect.refreshToken),
 			clientId: "test-client",
 			clientSecret: "test-client-secret",
 		});
@@ -215,7 +197,7 @@ test(
 
 		// Refresh tokens
 		await sleep(1000);
-		const updatedTokens = await client.refreshTokens();
+		const updatedTokens = await client.getValidSession({ forceRefresh: true });
 		const updatedAccessToken = await introspectToken({
 			token: assertDefined(updatedTokens.accessToken),
 			clientId: "test-client",

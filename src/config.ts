@@ -1,7 +1,7 @@
 import type { ISerializer } from "./serialization.js";
 import type { IStorage } from "./storage.js";
 
-export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
+export interface SimpleAuthPublicClientConfig<TState> {
 	// OIDC
 	endpoints: {
 		issuer: string;
@@ -17,8 +17,6 @@ export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
 
 	// Serialises access tokens, id tokens and refresh tokens
 	tokenSerialiser: ISerializer<string>;
-	// Serialises the user info before storing
-	userInfoSerialiser?: ISerializer<TUserInfo>;
 	// Serialises the state before storing
 	stateSerialiser: ISerializer<TState>;
 	// For storing the serialised state or session
@@ -29,9 +27,7 @@ export interface SimpleAuthPublicClientConfig<TState, TUserInfo> {
 	audience?: string;
 }
 
-export interface SimpleAuthConfidentialClientConfig<
-	TState extends {},
-	TUserInfo,
-> extends SimpleAuthPublicClientConfig<TState, TUserInfo> {
+export interface SimpleAuthConfidentialClientConfig<TState extends {}>
+	extends SimpleAuthPublicClientConfig<TState> {
 	clientSecret: string;
 }
