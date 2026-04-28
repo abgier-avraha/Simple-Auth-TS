@@ -226,7 +226,108 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		});
 	}
 
-	// TODO: refresh tokens
+	public async refreshTokens(): Promise<{
+		idToken: string;
+		accessToken: string;
+		refreshToken: string;
+	}> {
+		// 1. Load refresh token from storage
+		const storedRefreshToken = await this.config.storage.load(
+			STORAGE_KEYS.REFRESH_TOKEN,
+		);
+
+		if (!storedRefreshToken) {
+			throw new Error("No refresh token found in storage.");
+		}
+
+		const refreshToken =
+			await this.config.tokenSerialiser.parse(storedRefreshToken);
+
+		// 2. Resolve token endpoint
+		const discoveryDocument = await this.getDiscoveryDocument();
+
+		let tokenUrl: string | undefined;
+		if (this.config.endpoints.token) {
+			tokenUrl = this.config.endpoints.token;
+		} else if (discoveryDocument) {
+			tokenUrl = discoveryDocument.token_endpoint;
+		} else {
+			throw new Error(
+				"No token endpoint found in config or discovery document.",
+			);
+		}
+
+		// 3. Build request body
+		const bodyData = {
+			grant_type: "refresh_token",
+			refresh_token: refreshToken,
+			client_id: this.config.clientId,
+			client_secret: this.config.clientSecret,
+		};
+
+		const body = Object.entries(bodyData)
+			.map(
+				([key, value]) =>
+					`${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+			)
+			.join("&");
+
+		// 4. Call token endpoint
+		const response = await fetch(tokenUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body,
+		});
+
+		const tokenData: {
+			id_token: string;
+			access_token: string;
+			refresh_token: string;
+			error?: string;
+			error_description?: string;
+		} = await response.json();
+
+		// 5. Handle errors
+		if (tokenData.error) {
+			throw new Error(
+				JSON.stringify({
+					error: tokenData.error,
+					error_description: tokenData.error_description,
+				}),
+			);
+		}
+
+		// 6. Store updated tokens
+		if (tokenData.access_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.access_token,
+			);
+			await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+		}
+
+		if (tokenData.id_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.id_token,
+			);
+			await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+		}
+
+		// Important: refresh token may be rotated
+		if (tokenData.refresh_token) {
+			const serialised = await this.config.tokenSerialiser.stringify(
+				tokenData.refresh_token,
+			);
+			await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+		}
+
+		return {
+			accessToken: tokenData.access_token,
+			idToken: tokenData.id_token,
+			refreshToken: tokenData.refresh_token,
+		};
+	}
 
 	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
 		// TODO: use a cache key
@@ -267,6 +368,9 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		}
 	}
 
+	// TODO: add a config option to auto refresh
+	// TODO: check the exp of the tokens before reading and auto refresh if enabled
+
 	private parseQueryParams(urlStr: string): Record<string, string> {
 		const parsedUrl = new URL(urlStr);
 		const params: Record<string, string> = {};
@@ -278,7 +382,3 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 		return params;
 	}
 }
-
-/* Notes:
-	For cognito credential login we can 
-*/

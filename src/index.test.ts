@@ -5,6 +5,7 @@ import { InMemoryStorage } from "./storage.js";
 import { ConfidentialClient, STORAGE_KEYS } from "./index.js";
 import { chromium } from "playwright";
 import { introspectToken, runClientServer } from "./test-utils.js";
+import { assertDefined, sleep } from "./utils.js";
 
 type IState = { targetUrl: string; csrf: string };
 
@@ -144,5 +145,102 @@ test(
 		expect(refreshToken.given_name).toBe("Test");
 		expect(refreshToken.family_name).toBe("User");
 		expect(refreshToken.email).toBe("test@example.com");
+	},
+);
+
+test(
+	"Can sign in, handle redirect url to exchange code for token then refresh tokens",
+	{ timeout: 5000 },
+	async () => {
+		// Arrange
+		const config: SimpleAuthConfidentialClientConfig<IState, void> = {
+			endpoints: {
+				issuer: "http://localhost:8080/realms/demo",
+			},
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+			redirectUrl: "http://localhost:3000/callback",
+			scope: ["openid", "profile", "email"],
+			tokenSerialiser: new EncryptedSerializer("key"),
+			userInfoSerialiser: new EncryptedSerializer("key"),
+			stateSerialiser: new DefaultSerializer(),
+			storage: new InMemoryStorage(),
+		};
+
+		const client = new ConfidentialClient(config);
+
+		await config.storage.save(
+			STORAGE_KEYS.STATE,
+			await config.stateSerialiser.stringify({
+				targetUrl: "<target-url>",
+				csrf: "<csrf>",
+			}),
+		);
+
+		// Act
+		const server = runClientServer();
+		const signInUrl = await client.getSignInUrl({
+			targetUrl: "<target-url>",
+			csrf: "<csrf>",
+		});
+		const browser = await chromium.launch({ headless: true });
+		const page = await browser.newPage();
+		await page.goto(signInUrl);
+		await page.fill('input[name="username"]', "test@example.com");
+		await page.fill('input[name="password"]', "password");
+		await page.click('input[type="submit"]');
+		await page.waitForURL("**/callback*");
+		const redirectedUrl = page.url();
+		await browser.close();
+		server.stop();
+
+		const parsedRedirect = await client.handleRedirect(redirectedUrl);
+		const prevAccessToken = await introspectToken({
+			token: assertDefined(parsedRedirect.accessToken),
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+		const prevRefreshToken = await introspectToken({
+			token: parsedRedirect.refreshToken,
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+		const prevIdToken = await introspectToken({
+			token: assertDefined(parsedRedirect.idToken),
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+
+		// Refresh tokens
+		await sleep(1000);
+		const updatedTokens = await client.refreshTokens();
+		const updatedAccessToken = await introspectToken({
+			token: assertDefined(updatedTokens.accessToken),
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+		const updatedRefreshToken = await introspectToken({
+			token: assertDefined(updatedTokens.refreshToken),
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+		const updatedIdToken = await introspectToken({
+			token: assertDefined(updatedTokens.idToken),
+			clientId: "test-client",
+			clientSecret: "test-client-secret",
+		});
+
+		// Assert
+		expect(updatedTokens.accessToken).not.toBe(parsedRedirect.accessToken);
+		expect(updatedTokens.idToken).not.toBe(parsedRedirect.idToken);
+		expect(updatedTokens.refreshToken).not.toBe(parsedRedirect.refreshToken);
+
+		expect(updatedRefreshToken.exp as number).greaterThan(
+			prevRefreshToken.exp as number,
+		);
+		expect(updatedAccessToken.exp as number).greaterThan(
+			prevAccessToken.exp as number,
+		);
+		expect(updatedIdToken.exp as number).greaterThan(prevIdToken.exp as number);
 	},
 );
