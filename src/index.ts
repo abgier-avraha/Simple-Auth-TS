@@ -225,6 +225,7 @@ export class ConfidentialClient<TState extends {}, TUserInfo> {
 			issuer: discoveryDocument.issuer,
 		});
 	}
+
 	// TODO: refresh tokens
 
 	public async getDiscoveryDocument(): Promise<IDiscoveryDocument | undefined> {
