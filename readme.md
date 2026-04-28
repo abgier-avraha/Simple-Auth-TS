@@ -22,6 +22,7 @@ issuer: "http://localhost:8080/realms/demo",
   tokenSerialiser: new EncryptedSerializer("key"),
   stateSerialiser: new DefaultSerializer(),
   storage: new CookieStorage(), // This storage provider be implemented by you, the implementation will depend on your web framework/library
+	audience: "test-client",
 };
 ```
 
@@ -82,3 +83,14 @@ After being redirected back to the logout page on your website you can clear you
 ```ts
 await client.deleteSession()
 ```
+
+## Test Suite
+
+This library contains a test suite that runs a real web server to act as a client application as well as on OIDC server.
+
+### Docker Services
+
+Run `docker compose up` to get an instance of Keycloak running. This is required for running tests.
+
+### Run Test Suite
+Run `npm install` and `npm test` to run the test suite.
