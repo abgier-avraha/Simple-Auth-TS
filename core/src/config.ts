@@ -1,5 +1,5 @@
-import type { ISerializer } from "./serialization.js";
-import type { IStorage } from "./storage.js";
+import type { ISerializer } from "./serialization";
+import type { IStorage } from "./storage";
 
 export interface SimpleAuthPublicClientConfig<TState> {
 	// OIDC
@@ -15,11 +15,11 @@ export interface SimpleAuthPublicClientConfig<TState> {
 	redirectUrl: string;
 	scope: string[];
 
-	// Serialises access tokens, id tokens and refresh tokens
-	tokenSerialiser: ISerializer<string>;
-	// Serialises the state before storing
-	stateSerialiser: ISerializer<TState>;
-	// For storing the serialised state or session
+	// Serializes access tokens, id tokens and refresh tokens
+	tokenSerializer: ISerializer<string>;
+	// Serializes the state before storing
+	stateSerializer: ISerializer<TState>;
+	// For storing the serialized state or session
 	storage: IStorage;
 
 	// Validation

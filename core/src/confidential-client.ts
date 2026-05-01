@@ -1,11 +1,16 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
-import type { SimpleAuthConfidentialClientConfig } from "./config.js";
+import type { SimpleAuthConfidentialClientConfig } from "./config";
+import { AuthError } from "./auth-error";
+import type { AuthSession } from "./session";
 
 export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
 	ID_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
 	REFRESH_TOKEN: "SIMPLE_AUTH_REFRESH_TOKEN",
-	STATE: "SIMPLE_AUTH_STATE",
+};
+
+export type AuthResponse<TState> = AuthSession & {
+	state: TState;
 };
 
 interface IDiscoveryDocument {
@@ -27,8 +32,7 @@ export class ConfidentialClient<TState extends {}> {
 	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
 	public async getSignInUrl(state: TState) {
-		const serializedState = await this.config.stateSerialiser.stringify(state);
-		await this.config.storage.save(STORAGE_KEYS.STATE, serializedState);
+		const serializedState = await this.config.stateSerializer.stringify(state);
 
 		const params = new URLSearchParams({
 			response_type: "code",
@@ -46,7 +50,8 @@ export class ConfidentialClient<TState extends {}> {
 					discoveryDocument.scopes_supported.includes(s),
 				)
 			) {
-				throw new Error(
+				throw new AuthError(
+					"Invalid scopes",
 					`Invalid scopes, supported scopes are ${discoveryDocument.scopes_supported.join(", ")}`,
 				);
 			}
@@ -58,7 +63,8 @@ export class ConfidentialClient<TState extends {}> {
 			return `${discoveryDocument.authorization_endpoint}?${params.toString()}`;
 		}
 
-		throw new Error(
+		throw new AuthError(
+			"Authorization endpoint missing",
 			"No authorization endpoint found in config or discovery document.",
 		);
 	}
@@ -72,7 +78,8 @@ export class ConfidentialClient<TState extends {}> {
 			return discoveryDocument.end_session_endpoint;
 		}
 
-		throw new Error(
+		throw new AuthError(
+			"End session endpoint missing",
 			"No end session endpoint found in config or discovery document.",
 		);
 	}
@@ -82,7 +89,7 @@ export class ConfidentialClient<TState extends {}> {
 		const accessToken = await this.getAccessToken();
 
 		if (!accessToken) {
-			throw new Error("No access token found");
+			throw new AuthError("Session missing", "No access token found");
 		}
 
 		// Refresh
@@ -101,24 +108,15 @@ export class ConfidentialClient<TState extends {}> {
 	public async deleteSession() {
 		await this.config.storage.delete(STORAGE_KEYS.ACCESS_TOKEN);
 		await this.config.storage.delete(STORAGE_KEYS.ID_TOKEN);
-		await this.config.storage.delete(STORAGE_KEYS.STATE);
+		await this.config.storage.delete(STORAGE_KEYS.REFRESH_TOKEN);
 	}
 
-	public async handleRedirect(requestedUrl: string): Promise<{
-		idToken?: string;
-		accessToken?: string;
-		refreshToken?: string;
-		state: TState;
-	}> {
-		// Load initial login state
-		const serializedState = await this.config.storage.load(STORAGE_KEYS.STATE);
-		if (serializedState === undefined) {
-			throw new Error("State string not found in storage.");
-		}
-		const state = await this.config.stateSerialiser.parse(serializedState);
-
+	public async handleRedirect(
+		requestedUrl: string,
+	): Promise<AuthResponse<TState>> {
 		// Code exchange
 		const redirectUrlParams = this.parseQueryParams(requestedUrl);
+
 		const bodyData = {
 			grant_type: "authorization_code",
 			code: redirectUrlParams.code,
@@ -141,7 +139,8 @@ export class ConfidentialClient<TState extends {}> {
 		} else if (discoveryDocument) {
 			tokenUrl = discoveryDocument.token_endpoint;
 		} else {
-			throw new Error(
+			throw new AuthError(
+				"Token endpoint missing",
 				"No end token endpoint found in config or discovery document.",
 			);
 		}
@@ -155,24 +154,16 @@ export class ConfidentialClient<TState extends {}> {
 		});
 
 		const tokenData: {
-			access_token?: string;
+			access_token: string;
 			id_token?: string;
 			refresh_token?: string;
 			error?: string;
 			error_description?: string;
 		} = await response.json();
 
-		// Cleanup
-		await this.config.storage.delete(STORAGE_KEYS.STATE);
-
 		// Throw error if error in code exchange response
 		if (tokenData.error) {
-			throw new Error(
-				JSON.stringify({
-					error: tokenData.error,
-					error_description: tokenData.error_description,
-				}),
-			);
+			throw new AuthError(tokenData.error, tokenData.error_description ?? "");
 		}
 
 		// Store all tokens
@@ -189,6 +180,10 @@ export class ConfidentialClient<TState extends {}> {
 			await this.setRefreshToken(tokenData.refresh_token);
 		}
 
+		const state = await this.config.stateSerializer.parse(
+			redirectUrlParams.state,
+		);
+
 		return {
 			idToken: tokenData.id_token,
 			accessToken: tokenData.access_token,
@@ -203,7 +198,10 @@ export class ConfidentialClient<TState extends {}> {
 	) {
 		const discoveryDocument = await this.getDiscoveryDocument();
 		if (!discoveryDocument) {
-			throw new Error("Discovery document not found");
+			throw new AuthError(
+				"Missing discovery document",
+				"Discovery document not found",
+			);
 		}
 
 		const jwksSet = await this.getJwksSet(discoveryDocument);
@@ -232,7 +230,8 @@ export class ConfidentialClient<TState extends {}> {
 		try {
 			const res = await fetch(discoveryUrl);
 			if (!res.ok) {
-				throw new Error(
+				throw new AuthError(
+					"Discovery document missing",
 					`Failed to fetch discovery document: ${res.status} ${res.statusText}`,
 				);
 			}
@@ -258,16 +257,15 @@ export class ConfidentialClient<TState extends {}> {
 		}
 	}
 
-	private async refreshTokens(): Promise<{
-		idToken: string;
-		accessToken: string;
-		refreshToken: string;
-	}> {
+	private async refreshTokens(): Promise<AuthSession> {
 		// 1. Load refresh token from storage
 		const refreshToken = await this.getRefreshToken();
 
 		if (!refreshToken) {
-			throw new Error("No refresh token found in storage.");
+			throw new AuthError(
+				"Refresh token missing",
+				"No refresh token found in storage.",
+			);
 		}
 
 		// 2. Resolve token endpoint
@@ -279,8 +277,9 @@ export class ConfidentialClient<TState extends {}> {
 		} else if (discoveryDocument) {
 			tokenUrl = discoveryDocument.token_endpoint;
 		} else {
-			throw new Error(
-				"No token endpoint found in config or discovery document.",
+			throw new AuthError(
+				"Token endpoint missing",
+				"No end token endpoint found in config or discovery document.",
 			);
 		}
 
@@ -318,12 +317,7 @@ export class ConfidentialClient<TState extends {}> {
 
 		// 5. Handle errors
 		if (tokenData.error) {
-			throw new Error(
-				JSON.stringify({
-					error: tokenData.error,
-					error_description: tokenData.error_description,
-				}),
-			);
+			throw new AuthError(tokenData.error, tokenData.error_description ?? "");
 		}
 
 		// 6. Store updated tokens
@@ -347,12 +341,16 @@ export class ConfidentialClient<TState extends {}> {
 		};
 	}
 
+	public getConfig() {
+		return this.config;
+	}
+
 	private async getIdToken() {
 		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
 		if (!idToken) {
 			return undefined;
 		}
-		return this.config.tokenSerialiser.parse(idToken);
+		return this.config.tokenSerializer.parse(idToken);
 	}
 
 	private async getAccessToken() {
@@ -362,7 +360,7 @@ export class ConfidentialClient<TState extends {}> {
 		if (!accessToken) {
 			return undefined;
 		}
-		return this.config.tokenSerialiser.parse(accessToken);
+		return this.config.tokenSerializer.parse(accessToken);
 	}
 
 	private async getRefreshToken() {
@@ -372,22 +370,22 @@ export class ConfidentialClient<TState extends {}> {
 		if (!refreshToken) {
 			return undefined;
 		}
-		return this.config.tokenSerialiser.parse(refreshToken);
+		return this.config.tokenSerializer.parse(refreshToken);
 	}
 
 	private async setIdToken(token: string) {
-		const serialised = await this.config.tokenSerialiser.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialised);
+		const serialized = await this.config.tokenSerializer.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialized);
 	}
 
 	private async setAccessToken(token: string) {
-		const serialised = await this.config.tokenSerialiser.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialised);
+		const serialized = await this.config.tokenSerializer.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialized);
 	}
 
 	private async setRefreshToken(token: string) {
-		const serialised = await this.config.tokenSerialiser.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialised);
+		const serialized = await this.config.tokenSerializer.stringify(token);
+		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialized);
 	}
 
 	private isExpired(token: string): boolean {

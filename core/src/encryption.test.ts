@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vitest";
-import { EncryptedSerializer } from "./serialization.js";
+import { EncryptedSerializer } from "./serialization";
 
 test("Encryption serializer works", async () => {
 	// Mock random bytes to fixed value

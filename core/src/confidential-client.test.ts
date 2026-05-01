@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
-import type { SimpleAuthConfidentialClientConfig } from "./config.js";
-import { DefaultSerializer, EncryptedSerializer } from "./serialization.js";
-import { InMemoryStorage } from "./storage.js";
-import { ConfidentialClient } from "./index.js";
+import type { SimpleAuthConfidentialClientConfig } from "./config";
+import { DefaultSerializer, EncryptedSerializer } from "./serialization";
+import { InMemoryStorage } from "./storage";
 import { chromium } from "playwright";
-import { introspectToken, runClientServer } from "./test-utils.js";
-import { assertDefined, sleep } from "./utils.js";
+import { introspectToken, runClientServer } from "./test-utils";
+import { assertDefined, sleep } from "./utils";
+import { ConfidentialClient } from "./confidential-client";
 
 type IState = { targetUrl: string; csrf: string };
 
@@ -19,8 +19,8 @@ test("Can get sign in url for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerialiser: new EncryptedSerializer("key"),
-		stateSerialiser: new DefaultSerializer(),
+		tokenSerializer: new EncryptedSerializer("key"),
+		stateSerializer: new DefaultSerializer(),
 		storage: new InMemoryStorage(),
 	};
 	const client = new ConfidentialClient(config);
@@ -47,8 +47,8 @@ test("Can get sign out for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerialiser: new EncryptedSerializer("key"),
-		stateSerialiser: new DefaultSerializer(),
+		tokenSerializer: new EncryptedSerializer("key"),
+		stateSerializer: new DefaultSerializer(),
 		storage: new InMemoryStorage(),
 	};
 	const client = new ConfidentialClient(config);
@@ -75,8 +75,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerialiser: new EncryptedSerializer("key"),
-			stateSerialiser: new DefaultSerializer(),
+			tokenSerializer: new EncryptedSerializer("key"),
+			stateSerializer: new DefaultSerializer(),
 			storage: new InMemoryStorage(),
 		};
 
@@ -154,8 +154,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerialiser: new EncryptedSerializer("key"),
-			stateSerialiser: new DefaultSerializer(),
+			tokenSerializer: new EncryptedSerializer("key"),
+			stateSerializer: new DefaultSerializer(),
 			storage: new InMemoryStorage(),
 		};
 
@@ -196,7 +196,7 @@ test(
 		});
 
 		// Refresh tokens
-		await sleep(1000);
+		await sleep(2000);
 		const updatedTokens = await client.getValidSession({ forceRefresh: true });
 		const updatedAccessToken = await introspectToken({
 			token: assertDefined(updatedTokens.accessToken),

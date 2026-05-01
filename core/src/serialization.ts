@@ -1,4 +1,4 @@
-import { AESEncryption } from "./encryption.js";
+import { AESEncryption } from "./encryption";
 
 export interface ISerializer<T> {
 	stringify: (data: T) => Promise<string>;
