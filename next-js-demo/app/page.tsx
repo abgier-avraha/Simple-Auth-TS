@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { getLoginUrl } from "./action";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const loginUrl = await getLoginUrl({ redirectTo: "" });
 

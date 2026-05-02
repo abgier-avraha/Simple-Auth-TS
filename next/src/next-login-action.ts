@@ -2,7 +2,7 @@
 
 import type { ConfidentialClient } from "simple-auth-ts";
 
-export function createGetLoginUrlAction<T extends {}>(
+export async function createGetLoginUrlAction<T extends {}>(
 	client: ConfidentialClient<T>,
 ) {
 	return async function getLoginUrl(state: T) {
@@ -15,5 +15,9 @@ export function createGetLoginUrlAction<T extends {}>(
 
 	'use server';
 
-	export const getLoginUrl = createGetLoginUrlAction(authClient);
+	const action = await createGetLoginUrlAction(authClient);
+	export async function getLoginUrl(state: AuthState)
+	{
+		return await action(state);
+	}
 */
