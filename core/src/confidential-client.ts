@@ -34,6 +34,7 @@ export class ConfidentialClient<TState extends {}> {
 
 	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
+	// TODO: add arg for arbitrary body params like `identity_provider` which is the SSO provider for cognito
 	public async getSignInUrl(state: TState) {
 		const serializedState = await this.config.stateSerializer.stringify(state);
 
