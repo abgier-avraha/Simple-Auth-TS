@@ -13,6 +13,7 @@ export function createGetLoginUrlAction<T extends {}>(
 /*
   Use this factory in your action.ts or actions.ts like this
 
-  const getLoginUrl = createGetLoginUrl(client);
-  export const action = getLoginUrl;
+	'use server';
+
+	export const getLoginUrl = createGetLoginUrlAction(authClient);
 */

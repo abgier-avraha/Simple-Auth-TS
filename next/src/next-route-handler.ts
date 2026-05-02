@@ -3,7 +3,7 @@ import { AuthError, type ConfidentialClient } from "simple-auth-ts";
 
 export function createAuthRouteHandler<TState extends {}>(
 	client: ConfidentialClient<TState>,
-	redirectTo: string = "/",
+	redirectTo: (state?: TState) => string,
 ) {
 	return async function handler(req: NextRequest): Promise<Response> {
 		const config = client.getConfig();
@@ -21,10 +21,10 @@ export function createAuthRouteHandler<TState extends {}>(
 		}
 
 		try {
-			await client.handleRedirect(req.url);
-			return Response.redirect(new URL(redirectTo, req.url));
+			const res = await client.handleRedirect(req.url);
+			return Response.redirect(new URL(redirectTo(res.state), req.url));
 		} catch (error: unknown) {
-			const redirectUrl = new URL(redirectTo, req.url);
+			const redirectUrl = new URL(redirectTo(), req.url);
 			if (isAuthError(error)) {
 				redirectUrl.searchParams.set("error", error.code);
 				redirectUrl.searchParams.set("error_description", error.description);
@@ -47,6 +47,6 @@ function isAuthError(err: unknown): err is AuthError {
 /*
 	Use in your callback route (ex. app/api/auth/[...simple].ts)
 
-	const handler = createAuthRouteHandler(client, "/");
+	const handler = createAuthRouteHandler(client, (state) => "/");
 	export { handler as GET };
 */

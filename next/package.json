@@ -1,5 +1,5 @@
 {
-	"name": "sample-auth-ts-next",
+	"name": "simple-auth-ts-next",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -37,6 +37,6 @@
 		"react": "^19.2.0"
 	},
 	"dependencies": {
-		"simple-auth-ts": "file:../core"
+		"simple-auth-ts": "*"
 	}
 }
