@@ -2,6 +2,8 @@
 
 import type React from "react";
 import { createContext, useContext } from "react";
+
+// TODO: fix this import to come from lib
 import type { AuthSession } from "../../core/dist/session";
 
 export type SessionContextValue = {
@@ -37,11 +39,11 @@ export function useSession() {
 }
 
 /*
-  Use the provider in your server like this
+	Use the provider in your server like this
 
-  const session = await client.getValidSession()
-  ...
-  <SessionProvider session={session}>
-    ...
-  </SessionProvider>
+	const session = await client.getValidSession()
+	...
+	<SessionProvider session={session}>
+		...
+	</SessionProvider>
 */

@@ -45,7 +45,7 @@ function isAuthError(err: unknown): err is AuthError {
 }
 
 /*
-	Use in your callback route (ex. app/api/auth/[...simple].ts)
+	Use in your callback route (ex. app/api/auth/[...simple]/route.ts)
 
 	const handler = createAuthRouteHandler(client, (state) => "/");
 	export { handler as GET };

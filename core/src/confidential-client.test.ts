@@ -131,7 +131,7 @@ test(
 			clientSecret: "test-client-secret",
 		});
 		expect(refreshToken.scope).toBe(
-			"openid roles acr basic email profile web-origins",
+			"openid email profile web-origins acr roles basic",
 		);
 		expect(refreshToken.name).toBe("Test User");
 		expect(refreshToken.preferred_username).toBe("testuser");
@@ -197,7 +197,7 @@ test(
 
 		// Refresh tokens
 		await sleep(2000);
-		const updatedTokens = await client.getValidSession({ forceRefresh: true });
+		const updatedTokens = assertDefined(await client.getValidSession({ forceRefresh: true }));
 		const updatedAccessToken = await introspectToken({
 			token: assertDefined(updatedTokens.accessToken),
 			clientId: "test-client",

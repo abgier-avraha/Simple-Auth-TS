@@ -3,6 +3,9 @@ import type { SimpleAuthConfidentialClientConfig } from "./config";
 import { AuthError } from "./auth-error";
 import type { AuthSession } from "./session";
 
+// TODO: add verbose logging
+// TODO: expose storage for custom token retrieval like amplify
+
 export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
 	ID_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
@@ -87,12 +90,13 @@ export class ConfidentialClient<TState extends {}> {
 	// Will automatically refresh your session
 	public async getValidSession(args?: { forceRefresh: boolean }) {
 		const accessToken = await this.getAccessToken();
+		const refreshToken = await this.getRefreshToken();
 
 		if (!accessToken) {
-			throw new AuthError("Session missing", "No access token found");
+			return undefined;
 		}
 
-		// Refresh
+		// No refresh required
 		if (!this.isExpired(accessToken) && !args?.forceRefresh) {
 			return {
 				accessToken,
@@ -101,7 +105,12 @@ export class ConfidentialClient<TState extends {}> {
 			};
 		}
 
-		// No refresh required
+		// Refresh token expired
+		if (this.isExpired(accessToken)) {
+			this.deleteSession();
+		}
+
+		// Refresh
 		return await this.refreshTokens();
 	}
 
