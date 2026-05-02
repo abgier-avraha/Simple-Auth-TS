@@ -1,21 +1,22 @@
 'use client'
 
 import React, { useEffect, useState } from "react";
+// TODO: import from lib
 import type { AuthSession } from "../../../core/dist/session";
 import { NextSessionProvider } from "simple-auth-ts-next";
 import { getValidSession } from "../auth/actions";
 
-// TODO: consider another approach where we eagerly load and check the session form the cookie while the action is loading
-// TODO: move the logic into the lib, just pass the promise in
+// TODO: move the logic into the lib, just pass the getValidSession action promise in
 
 type SessionState = {
   status: "loading" | "authenticated" | "unauthenticated";
   session?: AuthSession;
 };
 
-export function SessionProvider(props: { children: React.ReactNode }) {
+export function SessionProvider(props: { session: AuthSession | undefined; children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>({
     status: "loading",
+    session: props.session,
   });
 
   useEffect(() => {
@@ -52,14 +53,6 @@ export function SessionProvider(props: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
-
-  if (state.status === "loading") {
-    return (
-      <div>
-        Loading session...
-      </div>
-    );
-  }
 
   return (
     <NextSessionProvider session={state.session}>

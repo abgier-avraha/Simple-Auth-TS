@@ -87,10 +87,25 @@ export class ConfidentialClient<TState extends {}> {
 		);
 	}
 
-	// Will automatically refresh your session
-	public async getValidSession(args?: { forceRefresh: boolean }) {
+	public async getSession(): Promise<AuthSession | undefined> {
+
 		const accessToken = await this.getAccessToken();
-		const refreshToken = await this.getRefreshToken();
+
+		if (!accessToken) {
+			return undefined;
+		}
+
+		return {
+			accessToken:accessToken,
+			idToken: await this.getIdToken(),
+			refreshToken: await this.getRefreshToken(),
+		};
+	}
+
+
+	// Will automatically refresh your session
+	public async getValidSession(args?: { forceRefresh: boolean }): Promise<AuthSession | undefined>  {
+		const accessToken = await this.getAccessToken();
 
 		if (!accessToken) {
 			return undefined;

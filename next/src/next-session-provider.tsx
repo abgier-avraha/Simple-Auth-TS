@@ -4,6 +4,9 @@ import type React from "react";
 import { createContext, useContext } from "react";
 
 // TODO: fix this import to come from lib
+
+// TODO: update this whole thing, pass in the server action for getValidSession as a prop
+
 import type { AuthSession } from "../../core/dist/session";
 
 export type SessionContextValue = {
