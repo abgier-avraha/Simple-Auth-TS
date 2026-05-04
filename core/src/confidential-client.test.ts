@@ -27,8 +27,10 @@ test("Can get sign in url for confidential client", async () => {
 
 	// Act
 	const signInUrl = await client.getSignInUrl({
-		targetUrl: "<target-url>",
-		csrf: "<csrf>",
+		state: {
+			targetUrl: "<target-url>",
+			csrf: "<csrf>",
+		},
 	});
 
 	// Assert
@@ -85,8 +87,10 @@ test(
 		// Act
 		const server = runClientServer();
 		const signInUrl = await client.getSignInUrl({
-			targetUrl: "<target-url>",
-			csrf: "<csrf>",
+			state: {
+				targetUrl: "<target-url>",
+				csrf: "<csrf>",
+			},
 		});
 		const browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
@@ -164,8 +168,10 @@ test(
 		// Act
 		const server = runClientServer();
 		const signInUrl = await client.getSignInUrl({
-			targetUrl: "<target-url>",
-			csrf: "<csrf>",
+			state: {
+				targetUrl: "<target-url>",
+				csrf: "<csrf>",
+			},
 		});
 		const browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
@@ -197,7 +203,9 @@ test(
 
 		// Refresh tokens
 		await sleep(2000);
-		const updatedTokens = assertDefined(await client.getValidSession({ forceRefresh: true }));
+		const updatedTokens = assertDefined(
+			await client.getValidSession({ forceRefresh: true }),
+		);
 		const updatedAccessToken = await introspectToken({
 			token: assertDefined(updatedTokens.accessToken),
 			clientId: "test-client",

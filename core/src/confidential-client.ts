@@ -35,7 +35,11 @@ export class ConfidentialClient<TState extends {}> {
 	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
 	// TODO: add arg for arbitrary body params like `identity_provider` which is the SSO provider for cognito
-	public async getSignInUrl(state: TState) {
+	public async getSignInUrl(args: {
+		state: TState;
+		urlParams?: Record<string, string>;
+	}) {
+		const { state, urlParams } = args;
 		const serializedState = await this.config.stateSerializer.stringify(state);
 
 		const params = new URLSearchParams({
@@ -44,6 +48,7 @@ export class ConfidentialClient<TState extends {}> {
 			redirect_uri: this.config.redirectUrl,
 			scope: this.config.scope.join(" "),
 			state: serializedState,
+			...urlParams,
 		});
 
 		const discoveryDocument = await this.getDiscoveryDocument();
@@ -89,7 +94,6 @@ export class ConfidentialClient<TState extends {}> {
 	}
 
 	public async getSession(): Promise<AuthSession | undefined> {
-
 		const accessToken = await this.getAccessToken();
 
 		if (!accessToken) {
@@ -97,15 +101,16 @@ export class ConfidentialClient<TState extends {}> {
 		}
 
 		return {
-			accessToken:accessToken,
+			accessToken: accessToken,
 			idToken: await this.getIdToken(),
 			refreshToken: await this.getRefreshToken(),
 		};
 	}
 
-
 	// Will automatically refresh your session
-	public async getValidSession(args?: { forceRefresh: boolean }): Promise<AuthSession | undefined>  {
+	public async getValidSession(args?: {
+		forceRefresh: boolean;
+	}): Promise<AuthSession | undefined> {
 		const accessToken = await this.getAccessToken();
 
 		if (!accessToken) {
