@@ -8,11 +8,12 @@ export interface SimpleAuthPublicClientConfig<TState> {
 		discovery?: string;
 		token?: string;
 		authorize?: string;
-		end_sesssion?: string;
+		end_session?: string;
 		userInfo?: string;
 	};
 	clientId: string;
 	redirectUrl: string;
+	postLogoutRedirectUri?: string;
 	scope: string[];
 
 	// Serializes the state before storing

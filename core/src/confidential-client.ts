@@ -78,11 +78,25 @@ export class ConfidentialClient<TState extends {}> {
 
 	public async getSignOutUrl() {
 		const discoveryDocument = await this.getDiscoveryDocument();
+		const idToken = await this.getIdToken();
+
+		const params = new URLSearchParams({});
+
+		if (this.config.postLogoutRedirectUri) {
+			params.append(
+				"post_logout_redirect_uri",
+				this.config.postLogoutRedirectUri,
+			);
+		}
+
+		if (idToken) {
+			params.append("id_token_hint", idToken);
+		}
 
 		if (this.config.endpoints.authorize) {
-			return this.config.endpoints.end_sesssion;
+			return `${this.config.endpoints.end_session}?${params.toString()}`;
 		} else if (discoveryDocument) {
-			return discoveryDocument.end_session_endpoint;
+			return `${discoveryDocument.end_session_endpoint}?${params.toString()}`;
 		}
 
 		throw new AuthError(

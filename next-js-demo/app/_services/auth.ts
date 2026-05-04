@@ -19,10 +19,10 @@ globals.authClient =
 		clientId: "test-client",
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/api/auth/callback",
+		postLogoutRedirectUri: "http://localhost:3000/api/auth/logout",
 		scope: ["openid", "profile", "email"],
-		tokenSerializer: new EncryptedSerializer("development"),
 		stateSerializer: new DefaultSerializer(),
-		storage: new NextCookieStorage(),
+		storage: new NextCookieStorage(new EncryptedSerializer("development")),
 	});
 
 export const authClient = globals.authClient;

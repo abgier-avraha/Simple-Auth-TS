@@ -9,7 +9,6 @@ export async function getLoginUrl(args: {
 	return await authClient.getSignInUrl(args);
 }
 
-// TODO: add sign out example
 export async function getSignOutUrl() {
 	return await authClient.getSignOutUrl();
 }

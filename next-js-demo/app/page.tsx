@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { LoginButton } from "./_components/login-button";
 import { LoginInfo } from "./_components/login-info";
+import { LogoutButton } from "./_components/logout-button";
 
 // TODO: add logout
 
@@ -16,8 +17,9 @@ export default async function Home() {
 					height={20}
 					priority
 				/>
-				<div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
+				<div className="flex flex-row items-center gap-6 text-center sm:items-start sm:text-left">
 					<LoginButton />
+					<LogoutButton />
 				</div>
 
 				<LoginInfo />
