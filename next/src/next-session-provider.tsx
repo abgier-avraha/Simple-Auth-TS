@@ -1,7 +1,10 @@
 "use client";
 
 import type React from "react";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+
+// TODO: fix this import to come from lib
+
 import type { AuthSession } from "../../core/dist/session";
 
 export type SessionContextValue = {
@@ -12,16 +15,59 @@ const SessionContext = createContext<SessionContextValue | undefined>(
 	undefined,
 );
 
-export function NextSessionProvider({
-	session,
-	children,
-}: {
+type SessionState = {
+	status: "loading" | "authenticated" | "unauthenticated";
+	session?: AuthSession;
+};
+
+export function SessionProvider(props: {
 	session: AuthSession | undefined;
+	getValidSession: () => Promise<AuthSession | undefined>;
 	children: React.ReactNode;
 }) {
+	const [state, setState] = useState<SessionState>({
+		status: "loading",
+		session: props.session,
+	});
+
+	useEffect(() => {
+		let cancelled = false;
+
+		async function init() {
+			try {
+				const session = await props.getValidSession();
+
+				if (cancelled) return;
+
+				if (session) {
+					setState({
+						status: "authenticated",
+						session,
+					});
+				} else {
+					setState({
+						status: "unauthenticated",
+					});
+				}
+			} catch {
+				if (!cancelled) {
+					setState({
+						status: "unauthenticated",
+					});
+				}
+			}
+		}
+
+		init();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [props.getValidSession]);
+
 	return (
-		<SessionContext.Provider value={{ session }}>
-			{children}
+		<SessionContext.Provider value={{ session: state.session }}>
+			{props.children}
 		</SessionContext.Provider>
 	);
 }
@@ -37,11 +83,40 @@ export function useSession() {
 }
 
 /*
-  Use the provider in your server like this
+	Use the provider in your server like this
 
-  const session = await client.getValidSession()
-  ...
-  <SessionProvider session={session}>
-    ...
-  </SessionProvider>
+	Create an action
+	
+	export async function getValidSession(args?: { forceRefresh: boolean }) {
+		return await authClient.getValidSession(args);
+	}
+
+	------
+
+	Create a client component wrapper
+
+	export function ClientSessionProvider(props: {
+		session: AuthSession | undefined;
+		children: React.ReactNode;
+	}) {
+		const getValidSessionAction = useCallback(() => {
+			return getValidSession();
+		}, []);
+
+		return (
+			<SessionProvider session={props.session} getValidSession={getValidSessionAction}>
+				{props.children}
+			</SessionProvider>
+		);
+	}
+
+	------
+
+	Use in your layout
+
+	const session = await client.getSession()
+	...
+	<ClientSessionProvider session={session}>
+		{children}
+	</ClientSessionProvider>
 */

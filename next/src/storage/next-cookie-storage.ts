@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import type { IStorage } from "simple-auth-ts";
+import type { ISerializer, IStorage } from "simple-auth-ts";
 
 export interface NextCookieStorageOptions {
 	httpOnly?: boolean;
@@ -11,19 +11,29 @@ export interface NextCookieStorageOptions {
 }
 
 export class NextCookieStorage implements IStorage {
-	constructor(private options: Partial<NextCookieStorageOptions> = {}) {}
+	constructor(
+		private serializer: ISerializer<string>,
+		private options: Partial<NextCookieStorageOptions> = {},
+	) {}
 
 	async save(key: string, value: string): Promise<void> {
+		const serializedValue = await this.serializer.stringify(value);
 		const store = await cookies();
 
-		store.set(key, value, {
+		store.set(key, serializedValue, {
 			...this.options,
 		});
 	}
 
 	async load(key: string): Promise<string | undefined> {
 		const store = await cookies();
-		return store.get(key)?.value;
+		const value = store.get(key)?.value;
+
+		if (value) {
+			return await this.serializer.parse(value);
+		}
+
+		return undefined;
 	}
 
 	async delete(key: string): Promise<void> {

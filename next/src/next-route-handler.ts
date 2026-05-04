@@ -1,14 +1,32 @@
 import type { NextRequest } from "next/server";
 import { AuthError, type ConfidentialClient } from "simple-auth-ts";
 
+// TODO: Clean up the conditionals
+
 export function createAuthRouteHandler<TState extends {}>(
 	client: ConfidentialClient<TState>,
-	redirectTo: string = "/",
+	opts: {
+		postLoginRedirect: (state?: TState) => string;
+		// This is the client side post logout url, not the provider side
+		postLogoutRedirect?: () => string;
+	},
 ) {
 	return async function handler(req: NextRequest): Promise<Response> {
 		const config = client.getConfig();
-
 		const url = new URL(req.url);
+
+		// Handle signout
+		if (config.postLogoutRedirectUri) {
+			const signoutPath = new URL(config.postLogoutRedirectUri).pathname;
+
+			if (url.pathname === signoutPath) {
+				await client.deleteSession();
+				const redirectUrl = new URL(opts.postLogoutRedirect?.() ?? "", req.url);
+				return Response.redirect(redirectUrl);
+			}
+		}
+
+		// Handle sign in callback
 		const callbackPath = new URL(config.redirectUrl).pathname;
 
 		if (url.pathname !== callbackPath) {
@@ -21,10 +39,12 @@ export function createAuthRouteHandler<TState extends {}>(
 		}
 
 		try {
-			await client.handleRedirect(req.url);
-			return Response.redirect(new URL(redirectTo, req.url));
+			const res = await client.handleRedirect(req.url);
+			return Response.redirect(
+				new URL(opts.postLoginRedirect(res.state), req.url),
+			);
 		} catch (error: unknown) {
-			const redirectUrl = new URL(redirectTo, req.url);
+			const redirectUrl = new URL(opts.postLoginRedirect(), req.url);
 			if (isAuthError(error)) {
 				redirectUrl.searchParams.set("error", error.code);
 				redirectUrl.searchParams.set("error_description", error.description);
@@ -45,8 +65,11 @@ function isAuthError(err: unknown): err is AuthError {
 }
 
 /*
-	Use in your callback route (ex. app/api/auth/[...simple].ts)
+	Use in your callback route (ex. app/api/auth/[...simple]/route.ts)
 
-	const handler = createAuthRouteHandler(client, "/");
+	const handler = createAuthRouteHandler(client, {
+		postLoginRedirect: (state) => state?.redirectTo ?? "/",
+		postLogoutRedirect: () => "/",
+	});
 	export { handler as GET };
 */

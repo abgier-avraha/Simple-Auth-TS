@@ -3,6 +3,8 @@ import type { SimpleAuthConfidentialClientConfig } from "./config";
 import { AuthError } from "./auth-error";
 import type { AuthSession } from "./session";
 
+// TODO: add verbose logging
+
 export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
 	ID_TOKEN: "SIMPLE_AUTH_ID_TOKEN",
@@ -31,7 +33,11 @@ export class ConfidentialClient<TState extends {}> {
 
 	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
-	public async getSignInUrl(state: TState) {
+	public async getSignInUrl(args: {
+		state: TState;
+		urlParams?: Record<string, string>;
+	}) {
+		const { state, urlParams } = args;
 		const serializedState = await this.config.stateSerializer.stringify(state);
 
 		const params = new URLSearchParams({
@@ -40,6 +46,7 @@ export class ConfidentialClient<TState extends {}> {
 			redirect_uri: this.config.redirectUrl,
 			scope: this.config.scope.join(" "),
 			state: serializedState,
+			...urlParams,
 		});
 
 		const discoveryDocument = await this.getDiscoveryDocument();
@@ -71,11 +78,25 @@ export class ConfidentialClient<TState extends {}> {
 
 	public async getSignOutUrl() {
 		const discoveryDocument = await this.getDiscoveryDocument();
+		const idToken = await this.getIdToken();
+
+		const params = new URLSearchParams({});
+
+		if (this.config.postLogoutRedirectUri) {
+			params.append(
+				"post_logout_redirect_uri",
+				this.config.postLogoutRedirectUri,
+			);
+		}
+
+		if (idToken) {
+			params.append("id_token_hint", idToken);
+		}
 
 		if (this.config.endpoints.authorize) {
-			return this.config.endpoints.end_sesssion;
+			return `${this.config.endpoints.end_session}?${params.toString()}`;
 		} else if (discoveryDocument) {
-			return discoveryDocument.end_session_endpoint;
+			return `${discoveryDocument.end_session_endpoint}?${params.toString()}`;
 		}
 
 		throw new AuthError(
@@ -84,15 +105,31 @@ export class ConfidentialClient<TState extends {}> {
 		);
 	}
 
-	// Will automatically refresh your session
-	public async getValidSession(args?: { forceRefresh: boolean }) {
+	public async getSession(): Promise<AuthSession | undefined> {
 		const accessToken = await this.getAccessToken();
 
 		if (!accessToken) {
-			throw new AuthError("Session missing", "No access token found");
+			return undefined;
 		}
 
-		// Refresh
+		return {
+			accessToken: accessToken,
+			idToken: await this.getIdToken(),
+			refreshToken: await this.getRefreshToken(),
+		};
+	}
+
+	// Will automatically refresh your session
+	public async getValidSession(args?: {
+		forceRefresh: boolean;
+	}): Promise<AuthSession | undefined> {
+		const accessToken = await this.getAccessToken();
+
+		if (!accessToken) {
+			return undefined;
+		}
+
+		// No refresh required
 		if (!this.isExpired(accessToken) && !args?.forceRefresh) {
 			return {
 				accessToken,
@@ -101,14 +138,34 @@ export class ConfidentialClient<TState extends {}> {
 			};
 		}
 
-		// No refresh required
+		// Refresh token expired
+		if (this.isExpired(accessToken)) {
+			this.deleteSession();
+		}
+
+		// Refresh
 		return await this.refreshTokens();
 	}
 
 	public async deleteSession() {
-		await this.config.storage.delete(STORAGE_KEYS.ACCESS_TOKEN);
-		await this.config.storage.delete(STORAGE_KEYS.ID_TOKEN);
-		await this.config.storage.delete(STORAGE_KEYS.REFRESH_TOKEN);
+		await this.deleteAccessToken();
+		await this.deleteIdToken();
+		await this.deleteRefreshToken();
+	}
+
+	// Use this if you want to support local login while handling the session with this library
+	public async setSession(args: AuthSession) {
+		await this.setAccessToken(args.accessToken);
+		if (args.idToken) {
+			await this.setIdToken(args.idToken);
+		} else {
+			await this.deleteIdToken();
+		}
+		if (args.refreshToken) {
+			await this.setRefreshToken(args.refreshToken);
+		} else {
+			await this.deleteRefreshToken();
+		}
 	}
 
 	public async handleRedirect(
@@ -346,46 +403,39 @@ export class ConfidentialClient<TState extends {}> {
 	}
 
 	private async getIdToken() {
-		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
-		if (!idToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(idToken);
+		return await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
 	}
 
 	private async getAccessToken() {
-		const accessToken = await this.config.storage.load(
-			STORAGE_KEYS.ACCESS_TOKEN,
-		);
-		if (!accessToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(accessToken);
+		return await this.config.storage.load(STORAGE_KEYS.ACCESS_TOKEN);
 	}
 
 	private async getRefreshToken() {
-		const refreshToken = await this.config.storage.load(
-			STORAGE_KEYS.REFRESH_TOKEN,
-		);
-		if (!refreshToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(refreshToken);
+		return await this.config.storage.load(STORAGE_KEYS.REFRESH_TOKEN);
 	}
 
 	private async setIdToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, token);
 	}
 
 	private async setAccessToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, token);
 	}
 
 	private async setRefreshToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, token);
+	}
+
+	private async deleteIdToken() {
+		await this.config.storage.delete(STORAGE_KEYS.ID_TOKEN);
+	}
+
+	private async deleteAccessToken() {
+		await this.config.storage.delete(STORAGE_KEYS.ACCESS_TOKEN);
+	}
+
+	private async deleteRefreshToken() {
+		await this.config.storage.delete(STORAGE_KEYS.REFRESH_TOKEN);
 	}
 
 	private isExpired(token: string): boolean {

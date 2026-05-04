@@ -19,16 +19,17 @@ test("Can get sign in url for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerializer: new EncryptedSerializer("key"),
 		stateSerializer: new DefaultSerializer(),
-		storage: new InMemoryStorage(),
+		storage: new InMemoryStorage(new EncryptedSerializer("key")),
 	};
 	const client = new ConfidentialClient(config);
 
 	// Act
 	const signInUrl = await client.getSignInUrl({
-		targetUrl: "<target-url>",
-		csrf: "<csrf>",
+		state: {
+			targetUrl: "<target-url>",
+			csrf: "<csrf>",
+		},
 	});
 
 	// Assert
@@ -47,9 +48,8 @@ test("Can get sign out for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerializer: new EncryptedSerializer("key"),
 		stateSerializer: new DefaultSerializer(),
-		storage: new InMemoryStorage(),
+		storage: new InMemoryStorage(new EncryptedSerializer("key")),
 	};
 	const client = new ConfidentialClient(config);
 
@@ -75,9 +75,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerializer: new EncryptedSerializer("key"),
 			stateSerializer: new DefaultSerializer(),
-			storage: new InMemoryStorage(),
+			storage: new InMemoryStorage(new EncryptedSerializer("key")),
 		};
 
 		const client = new ConfidentialClient(config);
@@ -85,8 +84,10 @@ test(
 		// Act
 		const server = runClientServer();
 		const signInUrl = await client.getSignInUrl({
-			targetUrl: "<target-url>",
-			csrf: "<csrf>",
+			state: {
+				targetUrl: "<target-url>",
+				csrf: "<csrf>",
+			},
 		});
 		const browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
@@ -106,7 +107,7 @@ test(
 			assertDefined(parsedRedirect.accessToken),
 		);
 
-		// Validate acccess token
+		// Validate access token
 		expect(accessToken.payload.scope).toBe("openid email profile");
 		expect(accessToken.payload.name).toBe("Test User");
 		expect(accessToken.payload.preferred_username).toBe("testuser");
@@ -131,7 +132,7 @@ test(
 			clientSecret: "test-client-secret",
 		});
 		expect(refreshToken.scope).toBe(
-			"openid roles acr basic email profile web-origins",
+			"openid email profile web-origins acr roles basic",
 		);
 		expect(refreshToken.name).toBe("Test User");
 		expect(refreshToken.preferred_username).toBe("testuser");
@@ -154,9 +155,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerializer: new EncryptedSerializer("key"),
 			stateSerializer: new DefaultSerializer(),
-			storage: new InMemoryStorage(),
+			storage: new InMemoryStorage(new EncryptedSerializer("key")),
 		};
 
 		const client = new ConfidentialClient(config);
@@ -164,8 +164,10 @@ test(
 		// Act
 		const server = runClientServer();
 		const signInUrl = await client.getSignInUrl({
-			targetUrl: "<target-url>",
-			csrf: "<csrf>",
+			state: {
+				targetUrl: "<target-url>",
+				csrf: "<csrf>",
+			},
 		});
 		const browser = await chromium.launch({ headless: true });
 		const page = await browser.newPage();
@@ -197,7 +199,9 @@ test(
 
 		// Refresh tokens
 		await sleep(2000);
-		const updatedTokens = await client.getValidSession({ forceRefresh: true });
+		const updatedTokens = assertDefined(
+			await client.getValidSession({ forceRefresh: true }),
+		);
 		const updatedAccessToken = await introspectToken({
 			token: assertDefined(updatedTokens.accessToken),
 			clientId: "test-client",
