@@ -1,3 +1,5 @@
+import type { ISerializer } from "./serialization";
+
 export interface IStorage {
 	save(key: string, value: string): Promise<void>;
 	load(key: string): Promise<string | undefined>;
@@ -5,12 +7,21 @@ export interface IStorage {
 }
 
 export class LocalStorage implements IStorage {
+	constructor(private serializer: ISerializer<string>) {}
+
 	async save(key: string, value: string): Promise<void> {
-		localStorage.setItem(key, value);
+		const serializedValue = await this.serializer.stringify(value);
+		localStorage.setItem(key, serializedValue);
 	}
 
 	async load(key: string): Promise<string | undefined> {
-		return localStorage.getItem(key) ?? undefined;
+		const value = localStorage.getItem(key);
+
+		if (value) {
+			return await this.serializer.parse(value);
+		}
+
+		return undefined;
 	}
 
 	async delete(key: string): Promise<void> {
@@ -19,18 +30,23 @@ export class LocalStorage implements IStorage {
 }
 
 export class InMemoryStorage implements IStorage {
-	private store: Map<string, string>;
+	private store = new Map<string, string>();
 
-	constructor() {
-		this.store = new Map();
-	}
+	constructor(private serializer: ISerializer<string>) {}
 
 	async save(key: string, value: string): Promise<void> {
-		this.store.set(key, value);
+		const serializedValue = await this.serializer.stringify(value);
+		this.store.set(key, serializedValue);
 	}
 
 	async load(key: string): Promise<string | undefined> {
-		return this.store.get(key);
+		const value = this.store.get(key);
+
+		if (value) {
+			return await this.serializer.parse(value);
+		}
+
+		return undefined;
 	}
 
 	async delete(key: string): Promise<void> {

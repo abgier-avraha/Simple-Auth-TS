@@ -4,7 +4,6 @@ import { AuthError } from "./auth-error";
 import type { AuthSession } from "./session";
 
 // TODO: add verbose logging
-// TODO: expose storage for custom token retrieval like amplify
 
 export const STORAGE_KEYS = {
 	ACCESS_TOKEN: "SIMPLE_AUTH_ACCESS_TOKEN",
@@ -34,7 +33,6 @@ export class ConfidentialClient<TState extends {}> {
 
 	constructor(private config: SimpleAuthConfidentialClientConfig<TState>) {}
 
-	// TODO: add arg for arbitrary body params like `identity_provider` which is the SSO provider for cognito
 	public async getSignInUrl(args: {
 		state: TState;
 		urlParams?: Record<string, string>;
@@ -136,9 +134,24 @@ export class ConfidentialClient<TState extends {}> {
 	}
 
 	public async deleteSession() {
-		await this.config.storage.delete(STORAGE_KEYS.ACCESS_TOKEN);
-		await this.config.storage.delete(STORAGE_KEYS.ID_TOKEN);
-		await this.config.storage.delete(STORAGE_KEYS.REFRESH_TOKEN);
+		await this.deleteAccessToken();
+		await this.deleteIdToken();
+		await this.deleteRefreshToken();
+	}
+
+	// Use this if you want to support local login while handling the session with this library
+	public async setSession(args: AuthSession) {
+		await this.setAccessToken(args.accessToken);
+		if (args.idToken) {
+			await this.setIdToken(args.idToken);
+		} else {
+			await this.deleteIdToken();
+		}
+		if (args.refreshToken) {
+			await this.setRefreshToken(args.refreshToken);
+		} else {
+			await this.deleteRefreshToken();
+		}
 	}
 
 	public async handleRedirect(
@@ -376,46 +389,39 @@ export class ConfidentialClient<TState extends {}> {
 	}
 
 	private async getIdToken() {
-		const idToken = await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
-		if (!idToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(idToken);
+		return await this.config.storage.load(STORAGE_KEYS.ID_TOKEN);
 	}
 
 	private async getAccessToken() {
-		const accessToken = await this.config.storage.load(
-			STORAGE_KEYS.ACCESS_TOKEN,
-		);
-		if (!accessToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(accessToken);
+		return await this.config.storage.load(STORAGE_KEYS.ACCESS_TOKEN);
 	}
 
 	private async getRefreshToken() {
-		const refreshToken = await this.config.storage.load(
-			STORAGE_KEYS.REFRESH_TOKEN,
-		);
-		if (!refreshToken) {
-			return undefined;
-		}
-		return this.config.tokenSerializer.parse(refreshToken);
+		return await this.config.storage.load(STORAGE_KEYS.REFRESH_TOKEN);
 	}
 
 	private async setIdToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.ID_TOKEN, token);
 	}
 
 	private async setAccessToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.ACCESS_TOKEN, token);
 	}
 
 	private async setRefreshToken(token: string) {
-		const serialized = await this.config.tokenSerializer.stringify(token);
-		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, serialized);
+		await this.config.storage.save(STORAGE_KEYS.REFRESH_TOKEN, token);
+	}
+
+	private async deleteIdToken() {
+		await this.config.storage.delete(STORAGE_KEYS.ID_TOKEN);
+	}
+
+	private async deleteAccessToken() {
+		await this.config.storage.delete(STORAGE_KEYS.ACCESS_TOKEN);
+	}
+
+	private async deleteRefreshToken() {
+		await this.config.storage.delete(STORAGE_KEYS.REFRESH_TOKEN);
 	}
 
 	private isExpired(token: string): boolean {

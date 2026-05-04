@@ -15,8 +15,6 @@ export interface SimpleAuthPublicClientConfig<TState> {
 	redirectUrl: string;
 	scope: string[];
 
-	// Serializes access tokens, id tokens and refresh tokens
-	tokenSerializer: ISerializer<string>;
 	// Serializes the state before storing
 	stateSerializer: ISerializer<TState>;
 	// For storing the serialized state or session

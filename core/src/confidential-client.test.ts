@@ -19,9 +19,8 @@ test("Can get sign in url for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerializer: new EncryptedSerializer("key"),
 		stateSerializer: new DefaultSerializer(),
-		storage: new InMemoryStorage(),
+		storage: new InMemoryStorage(new EncryptedSerializer("key")),
 	};
 	const client = new ConfidentialClient(config);
 
@@ -49,9 +48,8 @@ test("Can get sign out for confidential client", async () => {
 		clientSecret: "test-client-secret",
 		redirectUrl: "http://localhost:3000/callback",
 		scope: ["openid", "profile", "email"],
-		tokenSerializer: new EncryptedSerializer("key"),
 		stateSerializer: new DefaultSerializer(),
-		storage: new InMemoryStorage(),
+		storage: new InMemoryStorage(new EncryptedSerializer("key")),
 	};
 	const client = new ConfidentialClient(config);
 
@@ -77,9 +75,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerializer: new EncryptedSerializer("key"),
 			stateSerializer: new DefaultSerializer(),
-			storage: new InMemoryStorage(),
+			storage: new InMemoryStorage(new EncryptedSerializer("key")),
 		};
 
 		const client = new ConfidentialClient(config);
@@ -110,7 +107,7 @@ test(
 			assertDefined(parsedRedirect.accessToken),
 		);
 
-		// Validate acccess token
+		// Validate access token
 		expect(accessToken.payload.scope).toBe("openid email profile");
 		expect(accessToken.payload.name).toBe("Test User");
 		expect(accessToken.payload.preferred_username).toBe("testuser");
@@ -158,9 +155,8 @@ test(
 			clientSecret: "test-client-secret",
 			redirectUrl: "http://localhost:3000/callback",
 			scope: ["openid", "profile", "email"],
-			tokenSerializer: new EncryptedSerializer("key"),
 			stateSerializer: new DefaultSerializer(),
-			storage: new InMemoryStorage(),
+			storage: new InMemoryStorage(new EncryptedSerializer("key")),
 		};
 
 		const client = new ConfidentialClient(config);
