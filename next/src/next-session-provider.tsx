@@ -7,6 +7,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 import type { AuthSession } from "../../core/dist/session";
 
+// TODO: added decoded data to context, maybe a hook factory with a generic for claims? The generic will be T & CommonClaims
 export type SessionContextValue = {
 	session: AuthSession | undefined;
 };
