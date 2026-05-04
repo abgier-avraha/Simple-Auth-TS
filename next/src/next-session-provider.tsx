@@ -21,6 +21,9 @@ type SessionState = {
 	session?: AuthSession;
 };
 
+// TODO: think about what to do if access token is expired
+// TODO: think about what to do if refresh token is expired
+
 export function SessionProvider(props: {
 	session: AuthSession | undefined;
 	getValidSession: () => Promise<AuthSession | undefined>;
@@ -86,14 +89,6 @@ export function useSession() {
 /*
 	Use the provider in your server like this
 
-	Create an action
-	
-	export async function getValidSession(args?: { forceRefresh: boolean }) {
-		return await authClient.getValidSession(args);
-	}
-
-	------
-
 	Create a client component wrapper
 
 	export function ClientSessionProvider(props: {
@@ -104,6 +99,7 @@ export function useSession() {
 			return getValidSession();
 		}, []);
 
+		// getValidSession comes from createAuthActions
 		return (
 			<SessionProvider session={props.session} getValidSession={getValidSessionAction}>
 				{props.children}

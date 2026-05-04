@@ -1,18 +1,7 @@
 "use server";
 
-import { authClient, type AuthState } from "../_services/auth";
+import { authClient } from "../_services/auth";
+import { createAuthActions } from "simple-auth-ts-next";
 
-export async function getLoginUrl(args: {
-	state: AuthState;
-	urlParams?: Record<string, string>;
-}) {
-	return await authClient.getSignInUrl(args);
-}
-
-export async function getSignOutUrl() {
-	return await authClient.getSignOutUrl();
-}
-
-export async function getValidSession(args?: { forceRefresh: boolean }) {
-	return await authClient.getValidSession(args);
-}
+export const { getLoginUrl, getSignOutUrl, getValidSession } =
+	await createAuthActions(authClient);
