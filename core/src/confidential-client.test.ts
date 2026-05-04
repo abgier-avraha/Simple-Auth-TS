@@ -9,6 +9,9 @@ import { ConfidentialClient } from "./confidential-client";
 
 type IState = { targetUrl: string; csrf: string };
 
+// TODO: add tests for signout
+// TODO: add tests for local login via setSession, try refreshing session afterwards
+
 test("Can get sign in url for confidential client", async () => {
 	// Arrange
 	const config: SimpleAuthConfidentialClientConfig<IState> = {
